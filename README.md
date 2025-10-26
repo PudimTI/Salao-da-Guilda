@@ -14,7 +14,7 @@ Este é um Trabalho de Graduação para o curso de ADS, criado atraves de um lon
 
 **Salão da Guilda** é uma rede social dedicada a jogadores de RPG (Role Playing Games). A plataforma oferece ferramentas para criar campanhas, gerenciar personagens, interagir socialmente, participar de chats em tempo real e muito mais.
 
-- **Equipe Salão da Guilda**
+### Equipe Salão da Guilda
 
 - Gabriel Janotto Pereira
 - Júlia Emmanuella Frutuoso
