@@ -8,7 +8,7 @@
   Plataforma completa para criação, gerenciamento e participação em campanhas de RPG.
 </p>
 
-## 📋 Sobre o Projeto
+## Sobre o Projeto
 
 Este é um Trabalho de Graduação para o curso de ADS, criado atraves de um longo processo de pesquisa e levantamento de dados para atingir a resulução satisfatoria de um problema que foi identificado e documentado no documento escrito do Trabalho de Graduação com tematica: Criação de uma Aplicação Web para jogadores de RPG: Salão da Guilda.
 
@@ -16,25 +16,25 @@ Este é um Trabalho de Graduação para o curso de ADS, criado atraves de um lon
 
 - **Equipe Salão da Guilda**
 
-Gabriel Janotto Pereira
-Júlia Emmanuella Frutuoso
-João Pedro Vaz dos Santos Silva
-Kelvyn Cortez Lovato
+- Gabriel Janotto Pereira
+- Júlia Emmanuella Frutuoso
+- João Pedro Vaz dos Santos Silva
+- Kelvyn Cortez Lovato
 
-### 🎯 Características Principais
+### Características Principais
 
-- 🎮 **Sistema de Campanhas**: Crie e gerencie campanhas de RPG com suporte a múltiplos sistemas
-- 👥 **Rede Social**: Sistema completo de amizades e interações sociais
-- 💬 **Chat em Tempo Real**: Chat de campanha e mensagens diretas com WebSockets
-- 🧙 **Gerenciamento de Personagens**: Sistema completo de CRUD para personagens
-- 📊 **Feed Social**: Postagens com sistema de likes, comentários e reposts
-- 🏷️ **Sistema de Tags**: Categorização e filtragem inteligente de conteúdo
-- 🧠 **Mapas Mentais**: Editor visual colaborativo para campanhas
-- 🎲 **Rolagem de Dados**: Sistema integrado de rolagem de dados
-- 🔍 **Busca Avançada**: Full-text search com Meilisearch
-- 🤖 **Sistema de Recomendações**: Algoritmo inteligente de sugestões personalizadas
+- **Sistema de Campanhas**: Crie e gerencie campanhas de RPG com suporte a múltiplos sistemas
+- **Rede Social**: Sistema completo de amizades e interações sociais
+- **Chat em Tempo Real**: Chat de campanha e mensagens diretas com WebSockets
+- **Gerenciamento de Personagens**: Sistema completo de CRUD para personagens
+- **Feed Social**: Postagens com sistema de likes, comentários e reposts
+- **Sistema de Tags**: Categorização e filtragem inteligente de conteúdo
+- **Mapas Mentais**: Editor visual colaborativo para campanhas
+- **Rolagem de Dados**: Sistema integrado de rolagem de dados
+- **Busca Avançada**: Full-text search com Meilisearch
+- **Sistema de Recomendações**: Algoritmo inteligente de sugestões personalizadas
 
-## 🚀 Tecnologias Utilizadas
+## Tecnologias Utilizadas
 
 ### Backend
 - **Laravel 12** - Framework PHP moderno
@@ -53,7 +53,7 @@ Kelvyn Cortez Lovato
 - **Laravel Echo** - Integração WebSockets
 - **Pusher JS** - Comunicação em tempo real
 
-## 📦 Instalação
+## Instalação
 
 ### Pré-requisitos
 
@@ -123,7 +123,7 @@ npm run dev
 http://localhost:8000
 ```
 
-## 🎮 Funcionalidades Detalhadas
+## Funcionalidades Detalhadas
 
 ### Sistema de Campanhas
 
