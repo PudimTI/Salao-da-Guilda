@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Profile Update</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+</head>
+<body>
+    <h1>Debug Profile Update</h1>
+    <button onclick="testProfileUpdate()">Testar Atualização de Perfil</button>
+    <div id="result"></div>
+
+    <script>
+        async function testProfileUpdate() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testando...';
+            
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                console.log('CSRF Token:', csrfToken);
+                
+                const formData = new FormData();
+                formData.append('display_name', 'Teste Debug');
+                formData.append('bio', 'Bio de teste');
+                formData.append('_token', csrfToken);
+                
+                const response = await fetch('/api/profile', {
+                    method: 'PUT',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrfToken,
+                    },
+                    credentials: 'same-origin'
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response ok:', response.ok);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = '✅ Sucesso: ' + JSON.stringify(data);
+                } else {
+                    const errorText = await response.text();
+                    resultDiv.innerHTML = '❌ Erro: ' + response.status + ' - ' + errorText;
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                resultDiv.innerHTML = '❌ Erro: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
+
