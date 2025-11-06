@@ -11,7 +11,7 @@ const FriendsPage = () => {
     const [showUserProfile, setShowUserProfile] = useState(false);
     const [showChat, setShowChat] = useState(false);
     
-    const { friends, loading, error, removeFriend, blockUser, refresh } = useFriendships();
+    const { friends = [], loading, error, removeFriend, blockUser, refresh } = useFriendships();
 
     const handleUserSelect = (user) => {
         setSelectedUser(user);
@@ -35,6 +35,7 @@ const FriendsPage = () => {
 
     const handleRemoveFriend = async (friendshipId) => {
         try {
+            // A API espera friend_id, não friendship_id
             await removeFriend(friendshipId);
             alert('Amigo removido com sucesso!');
         } catch (error) {
@@ -51,10 +52,21 @@ const FriendsPage = () => {
         }
     };
 
-    const filteredFriends = friends.filter(friend => 
-        friend.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        friend.user.username.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    // Garantir que friends seja sempre um array antes de filtrar
+    const filteredFriends = (Array.isArray(friends) ? friends : []).filter(friend => {
+        if (!friend) return false;
+        
+        // A API retorna friend.friend (relacionamento Eloquent)
+        const friendData = friend.friend || friend.user || {};
+        const displayName = friendData.display_name || friendData.name || '';
+        const handle = friendData.handle || friendData.username || '';
+        
+        if (!searchQuery) return true;
+        
+        const search = searchQuery.toLowerCase();
+        return displayName.toLowerCase().includes(search) || 
+               handle.toLowerCase().includes(search);
+    });
 
     return (
         <AppLayout currentPage="friends">
@@ -148,7 +160,7 @@ const FriendsPage = () => {
                             <div className="grid gap-4">
                                 {filteredFriends.map((friend) => (
                                     <FriendCard
-                                        key={friend.friendship_id}
+                                        key={friend.id || friend.friend_id || `friend-${friend.friend?.id}`}
                                         friend={friend}
                                         onRemove={handleRemoveFriend}
                                         onBlock={handleBlockUser}

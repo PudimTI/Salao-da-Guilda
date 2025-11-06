@@ -13,17 +13,20 @@ const ChatSidebar = ({
     const filteredConversations = conversations.filter(conversation => {
         if (!searchTerm) return true;
         
+        const currentUserId = JSON.parse(localStorage.getItem('user') || '{}').id;
+        // Os participantes já são os usuários (belongsToMany)
         const otherParticipant = conversation.participants?.find(
-            p => p.user_id !== JSON.parse(localStorage.getItem('user') || '{}').id
+            p => p.id !== currentUserId
         );
         
         if (!otherParticipant) return false;
         
-        const userName = otherParticipant.user?.name?.toLowerCase() || '';
-        const userHandle = otherParticipant.user?.handle?.toLowerCase() || '';
+        const displayName = otherParticipant?.display_name?.toLowerCase() || '';
+        const userName = otherParticipant?.name?.toLowerCase() || '';
+        const userHandle = otherParticipant?.handle?.toLowerCase() || '';
         const search = searchTerm.toLowerCase();
         
-        return userName.includes(search) || userHandle.includes(search);
+        return displayName.includes(search) || userName.includes(search) || userHandle.includes(search);
     });
 
     // Formatar timestamp relativo
@@ -58,8 +61,11 @@ const ChatSidebar = ({
 
     // Obter informações do outro participante
     const getOtherParticipant = (conversation) => {
+        const currentUserId = JSON.parse(localStorage.getItem('user') || '{}').id;
+        // Os participantes já são os usuários (belongsToMany)
+        // O pivot tem user_id, mas p.id também é o user_id
         return conversation.participants?.find(
-            p => p.user_id !== JSON.parse(localStorage.getItem('user') || '{}').id
+            p => p.id !== currentUserId
         );
     };
 
@@ -135,18 +141,18 @@ const ChatSidebar = ({
                                     {/* Avatar */}
                                     <div className="relative">
                                         <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold ${
-                                            otherParticipant?.user?.avatar_url 
+                                            otherParticipant?.avatar_url 
                                                 ? 'bg-gray-200' 
                                                 : 'bg-purple-500'
                                         }`}>
-                                            {otherParticipant?.user?.avatar_url ? (
+                                            {otherParticipant?.avatar_url ? (
                                                 <img
-                                                    src={otherParticipant.user.avatar_url}
-                                                    alt={otherParticipant.user.name}
+                                                    src={otherParticipant.avatar_url}
+                                                    alt={otherParticipant?.display_name || otherParticipant?.name || 'Usuário'}
                                                     className="w-12 h-12 rounded-full object-cover"
                                                 />
                                             ) : (
-                                                otherParticipant?.user?.name?.charAt(0) || 'U'
+                                                (otherParticipant?.display_name || otherParticipant?.name || 'U')?.charAt(0).toUpperCase() || 'U'
                                             )}
                                         </div>
                                         
@@ -157,12 +163,19 @@ const ChatSidebar = ({
                                     {/* Informações da conversa */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between">
-                                            <h3 className={`text-sm font-medium truncate ${
-                                                isActive ? 'text-purple-900' : 'text-gray-900'
-                                            }`}>
-                                                {otherParticipant?.user?.name || 'Usuário'}
-                                            </h3>
-                                            <span className={`text-xs ${
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className={`text-sm font-medium truncate ${
+                                                    isActive ? 'text-purple-900' : 'text-gray-900'
+                                                }`}>
+                                                    {otherParticipant?.display_name || otherParticipant?.name || 'Usuário'}
+                                                </h3>
+                                                <p className={`text-xs truncate ${
+                                                    isActive ? 'text-purple-600' : 'text-gray-500'
+                                                }`}>
+                                                    @{otherParticipant?.handle || 'usuario'}
+                                                </p>
+                                            </div>
+                                            <span className={`text-xs ml-2 flex-shrink-0 ${
                                                 isActive ? 'text-purple-600' : 'text-gray-500'
                                             }`}>
                                                 {formatRelativeTime(conversation.last_activity_at)}
@@ -173,12 +186,18 @@ const ChatSidebar = ({
                                             <p className={`text-sm truncate ${
                                                 isActive ? 'text-purple-700' : 'text-gray-500'
                                             }`}>
-                                                {truncateMessage(conversation.last_message?.content)}
+                                                {(() => {
+                                                    // Usar a última mensagem das mensagens pré-carregadas ou last_message
+                                                    const lastMsg = conversation.messages?.length > 0 
+                                                        ? conversation.messages[conversation.messages.length - 1] 
+                                                        : conversation.last_message;
+                                                    return truncateMessage(lastMsg?.content);
+                                                })()}
                                             </p>
                                             
                                             {/* Contador de não lidas */}
                                             {unreadCount > 0 && (
-                                                <div className="bg-purple-600 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                                                <div className="bg-purple-600 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center ml-2 flex-shrink-0">
                                                     {unreadCount > 99 ? '99+' : unreadCount}
                                                 </div>
                                             )}
@@ -223,11 +242,13 @@ const ChatSidebar = ({
             <div className="p-4 border-t border-gray-200">
                 <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                        {JSON.parse(localStorage.getItem('user') || '{}').name?.charAt(0) || 'U'}
+                        {(JSON.parse(localStorage.getItem('user') || '{}').display_name || 
+                          JSON.parse(localStorage.getItem('user') || '{}').name || 'U')?.charAt(0).toUpperCase() || 'U'}
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">
-                            {JSON.parse(localStorage.getItem('user') || '{}').name || 'Usuário'}
+                            {JSON.parse(localStorage.getItem('user') || '{}').display_name || 
+                             JSON.parse(localStorage.getItem('user') || '{}').name || 'Usuário'}
                         </p>
                         <p className="text-xs text-gray-500 truncate">
                             @{JSON.parse(localStorage.getItem('user') || '{}').handle || 'usuario'}

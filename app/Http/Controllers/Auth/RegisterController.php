@@ -59,6 +59,28 @@ class RegisterController extends Controller
         ]);
 
         Auth::login($user);
+        
+        // Atualizar último login
+        $user->update(['last_login_at' => now()]);
+
+        // Se a requisição for JSON (ex.: SPA/API), já retornar token de acesso
+        if ($request->wantsJson() || $request->expectsJson() || $request->is('api/*')) {
+            $token = $user->createToken('auth-token')->plainTextToken;
+
+            return response()->json([
+                'success' => true,
+                'token' => $token,
+                'token_preview' => substr($token, 0, 20) . '...',
+                'token_length' => strlen($token),
+                'user' => [
+                    'id' => $user->id,
+                    'email' => $user->email,
+                    'display_name' => $user->display_name,
+                    'handle' => $user->handle ?? null,
+                ],
+                'message' => 'Conta criada e autenticada com sucesso'
+            ]);
+        }
 
         return redirect('/')->with('success', 'Conta criada com sucesso!');
     }

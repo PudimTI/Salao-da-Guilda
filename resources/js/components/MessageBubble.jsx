@@ -28,17 +28,25 @@ const MessageBubble = ({ message, showAvatar = false }) => {
                                 onClick={() => window.open(message.media_url, '_blank')}
                             />
                         ) : (
-                            <div className="bg-gray-100 rounded-lg p-4 flex items-center space-x-3">
-                                <div className="w-8 h-8 bg-purple-500 rounded flex items-center justify-center">
-                                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className={`rounded-lg p-4 flex items-center space-x-3 ${
+                                isOwnMessage ? 'bg-white/10' : 'bg-gray-100'
+                            }`}>
+                                <div className={`w-8 h-8 rounded flex items-center justify-center ${
+                                    isOwnMessage ? 'bg-white/20' : 'bg-purple-500'
+                                }`}>
+                                    <svg className={`w-4 h-4 ${isOwnMessage ? 'text-white' : 'text-white'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-gray-900 truncate">
+                                    <p className={`text-sm font-medium truncate ${
+                                        isOwnMessage ? 'text-white' : 'text-gray-900'
+                                    }`}>
                                         Arquivo anexado
                                     </p>
-                                    <p className="text-xs text-gray-500">
+                                    <p className={`text-xs ${
+                                        isOwnMessage ? 'text-white/80' : 'text-gray-500'
+                                    }`}>
                                         Clique para abrir
                                     </p>
                                 </div>
@@ -48,7 +56,9 @@ const MessageBubble = ({ message, showAvatar = false }) => {
                     
                     {/* Texto da mensagem */}
                     {message.content && (
-                        <p className="text-sm text-gray-900 whitespace-pre-wrap break-words">
+                        <p className={`text-sm whitespace-pre-wrap break-words ${
+                            isOwnMessage ? 'text-white' : 'text-gray-900'
+                        }`}>
                             {message.content}
                         </p>
                     )}
@@ -57,7 +67,9 @@ const MessageBubble = ({ message, showAvatar = false }) => {
         }
 
         return (
-            <p className="text-sm text-gray-900 whitespace-pre-wrap break-words">
+            <p className={`text-sm whitespace-pre-wrap break-words ${
+                isOwnMessage ? 'text-white' : 'text-gray-900'
+            }`}>
                 {message.content}
             </p>
         );
@@ -74,7 +86,7 @@ const MessageBubble = ({ message, showAvatar = false }) => {
             {/* Avatar */}
             {showAvatar && !isOwnMessage && (
                 <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-                    {message.sender?.name?.charAt(0) || 'U'}
+                    {(message.sender?.display_name || message.sender?.name || 'U')?.charAt(0).toUpperCase() || 'U'}
                 </div>
             )}
 
@@ -83,7 +95,7 @@ const MessageBubble = ({ message, showAvatar = false }) => {
                 {/* Nome do remetente (apenas para mensagens de outros usuários) */}
                 {showAvatar && !isOwnMessage && (
                     <p className="text-xs text-gray-500 mb-1 px-1">
-                        {message.sender?.name || 'Usuário'}
+                        {message.sender?.display_name || message.sender?.name || 'Usuário'}
                     </p>
                 )}
 

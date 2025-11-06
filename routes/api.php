@@ -12,6 +12,7 @@ use App\Http\Controllers\MindmapController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 // Rota de login para gerar token
 Route::post('/login', function (Request $request) {
@@ -20,22 +21,108 @@ Route::post('/login', function (Request $request) {
         'password' => 'required'
     ]);
     
+    Log::info('🔐 Tentativa de login', [
+        'email' => $credentials['email'],
+    ]);
+    
     if (Auth::attempt($credentials)) {
         $user = Auth::user();
+        Log::info('✅ Login bem-sucedido', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+        ]);
+        
+        // Criar token
         $token = $user->createToken('auth-token')->plainTextToken;
+        
+        // Verificar se o token foi criado no banco
+        $tokenModel = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
+        
+        Log::info('🎫 Token criado', [
+            'token_preview' => substr($token, 0, 30) . '...',
+            'token_length' => strlen($token),
+            'token_saved_in_db' => $tokenModel !== null,
+            'token_id' => $tokenModel?->id,
+        ]);
         
         return response()->json([
             'success' => true,
             'token' => $token,
-            'user' => $user
-        ]);
+            'token_preview' => substr($token, 0, 20) . '...',
+            'token_length' => strlen($token),
+            'user' => [
+                'id' => $user->id,
+                'email' => $user->email,
+                'display_name' => $user->display_name,
+            ],
+            'debug' => [
+                'token_saved_in_db' => $tokenModel !== null,
+            ]
+        ])
+        // Gravar cookie para navegação full-page autenticar via middleware
+        ->cookie(
+            'auth_token',
+            $token,
+            60 * 24 * 30,
+            '/',
+            null,
+            app()->environment('production'),
+            true,
+            false,
+            'Lax'
+        );
     }
+    
+    Log::warning('❌ Login falhou', [
+        'email' => $credentials['email'],
+        'reason' => 'Credenciais inválidas'
+    ]);
     
     return response()->json([
         'success' => false,
         'message' => 'Credenciais inválidas'
     ], 401);
 });
+
+// Logout via API (sem CSRF), revoga token e encerra sessão
+Route::post('/logout', function (Request $request) {
+    try {
+        if ($request->user() && method_exists($request->user(), 'currentAccessToken') && $request->user()->currentAccessToken()) {
+            $request->user()->currentAccessToken()->delete();
+        }
+        
+        // Garantir que a sessão web também seja encerrada
+        Auth::guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Logout realizado com sucesso'
+        ]);
+    } catch (\Throwable $e) {
+        Log::warning('Erro no logout API', ['error' => $e->getMessage()]);
+        return response()->json([
+            'success' => false,
+            'message' => 'Erro ao realizar logout'
+        ], 500);
+    }
+})->middleware('auth:sanctum');
+
+// (removido) rota de teste de autenticação
+
+// Rota de teste COM middleware para comparar
+Route::get('/auth/test-protected', function (Request $request) {
+    return response()->json([
+        'authenticated' => Auth::check(),
+        'user' => Auth::check() ? [
+            'id' => Auth::user()->id,
+            'email' => Auth::user()->email,
+            'name' => Auth::user()->display_name ?? Auth::user()->name,
+        ] : null,
+        'message' => 'Acesso autorizado via middleware auth:sanctum',
+    ]);
+})->middleware('auth:sanctum');
 
 // Rota de teste para API sem CSRF
 Route::post('/test-posts', function (Request $request) {
@@ -249,10 +336,28 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/chat/conversations', [ChatController::class, 'index']);
     Route::post('/chat/conversations', [ChatController::class, 'store']);
     Route::get('/chat/conversations/{conversation}', [ChatController::class, 'show']);
+    Route::post('/chat/conversations/{conversation}/participants', [ChatController::class, 'addParticipant']);
+    Route::delete('/chat/conversations/{conversation}/participants/{user}', [ChatController::class, 'removeParticipant']);
+    Route::post('/chat/conversations/{conversation}/leave', [ChatController::class, 'leave']);
+    
+    // Rotas de Mensagens
     Route::get('/chat/conversations/{conversation}/messages', [MessageController::class, 'index']);
     Route::post('/chat/conversations/{conversation}/messages', [MessageController::class, 'store']);
+    Route::put('/chat/conversations/{conversation}/messages/{message}', [MessageController::class, 'update']);
+    Route::delete('/chat/conversations/{conversation}/messages/{message}', [MessageController::class, 'destroy']);
+    Route::post('/chat/conversations/{conversation}/mark-read', [MessageController::class, 'markAsRead']);
+    Route::post('/chat/conversations/{conversation}/typing', [MessageController::class, 'typing']);
+    
+    // Rotas de Campanha
     Route::get('/campaigns/{campaign}/conversations', [ChatController::class, 'getCampaignConversations']);
     Route::get('/campaigns/{campaign}/members', [CampaignController::class, 'getCampaignMembers']);
+    Route::get('/campaigns/{campaign}/files', [CampaignController::class, 'getCampaignFiles']);
+    Route::post('/campaigns/{campaign}/files', [CampaignController::class, 'uploadCampaignFile']);
+
+    // Rotas de teste do Pusher
+    Route::post('/pusher-test/public', [\App\Http\Controllers\PusherTestController::class, 'testPublic']);
+    Route::post('/pusher-test/private', [\App\Http\Controllers\PusherTestController::class, 'testPrivate']);
+    Route::post('/pusher-test/conversation/{conversation}', [\App\Http\Controllers\PusherTestController::class, 'testConversation']);
 
 });
 

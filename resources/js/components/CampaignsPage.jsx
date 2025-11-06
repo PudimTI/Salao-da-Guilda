@@ -46,9 +46,9 @@ const CampaignsPage = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-white">
+            <div className="min-h-screen bg-white flex flex-col">
                 <Header />
-                <main className="px-6 py-10">
+                <main className="flex-1 px-6 py-10">
                     <div className="max-w-5xl mx-auto">
                         <div className="text-center">
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
@@ -62,10 +62,10 @@ const CampaignsPage = () => {
     }
 
     return (
-        <div className="min-h-screen bg-white">
+        <div className="min-h-screen bg-white flex flex-col">
             <Header />
 
-            <main className="px-6 py-10">
+            <main className="flex-1 px-6 py-10">
                 <div className="max-w-5xl mx-auto">
                     <h1 className="text-3xl md:text-4xl font-bold text-gray-800 text-center">Encontrar Campanhas</h1>
 

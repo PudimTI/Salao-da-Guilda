@@ -75,6 +75,28 @@ class ChatController extends Controller
                 }
             }
 
+            // Verificar se já existe conversa da campanha (para tipo campaign)
+            if ($type === 'campaign' && $campaignId) {
+                $campaign = \App\Models\Campaign::findOrFail($campaignId);
+                
+                // Buscar conversas da campanha do tipo 'campaign'
+                $existingCampaignConversation = Conversation::where('campaign_id', $campaignId)
+                    ->where('type', 'campaign')
+                    ->whereHas('participants', function($query) use ($user) {
+                        $query->where('user_id', $user->id);
+                    })
+                    ->with(['participants', 'campaign'])
+                    ->first();
+                
+                if ($existingCampaignConversation) {
+                    return response()->json([
+                        'success' => true,
+                        'data' => $existingCampaignConversation,
+                        'message' => 'Conversa da campanha já existe'
+                    ]);
+                }
+            }
+
             $conversation = $this->chatService->createConversation([
                 'creator_id' => $user->id,
                 'participants' => $participants,
@@ -113,7 +135,11 @@ class ChatController extends Controller
             ], 403);
         }
 
-        $conversation->load(['participants.user', 'campaign', 'messages.sender']);
+        $conversation->load([
+            'participants',
+            'campaign', 
+            'messages.sender'
+        ]);
 
         return response()->json([
             'success' => true,
@@ -171,17 +197,12 @@ class ChatController extends Controller
     /**
      * Remover participante da conversa
      */
-    public function removeParticipant(Request $request, Conversation $conversation): JsonResponse
+    public function removeParticipant(Conversation $conversation, User $user): JsonResponse
     {
-        $request->validate([
-            'user_id' => 'required|integer|exists:users,id'
-        ]);
-
-        $user = Auth::user();
-        $userId = $request->get('user_id');
+        $authUser = Auth::user();
 
         // Verificar permissões
-        $participant = $conversation->participants()->where('user_id', $user->id)->first();
+        $participant = $conversation->participants()->where('user_id', $authUser->id)->first();
         if (!$participant || !in_array($participant->role, ['admin', 'owner'])) {
             return response()->json([
                 'success' => false,
@@ -189,8 +210,16 @@ class ChatController extends Controller
             ], 403);
         }
 
+        // Verificar se o usuário a ser removido é participante
+        if (!$conversation->participants()->where('user_id', $user->id)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Usuário não é participante desta conversa'
+            ], 404);
+        }
+
         try {
-            $this->chatService->removeParticipant($conversation->id, $userId);
+            $this->chatService->removeParticipant($conversation->id, $user->id);
 
             return response()->json([
                 'success' => true,
@@ -252,10 +281,11 @@ class ChatController extends Controller
                 ->whereHas('participants', function($query) use ($user) {
                     $query->where('user_id', $user->id);
                 })
-                ->with(['participants.user', 'messages' => function($query) {
+                ->with(['participants', 'messages' => function($query) {
                     $query->latest()->limit(1);
                 }])
-                ->orderBy('updated_at', 'desc')
+                ->orderBy('last_activity_at', 'desc')
+                ->orderBy('created_at', 'desc')
                 ->get();
 
             return response()->json([

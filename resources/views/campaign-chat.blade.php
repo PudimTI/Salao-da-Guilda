@@ -15,7 +15,8 @@
 </head>
 <body>
     <!-- React App Container -->
-    <div id="campaign-chat-app" data-campaign-id="{{ $campaign->id }}"></div>
+    <div id="campaign-chat-app" 
+         data-campaign-id="{{ $campaign->id }}"></div>
 
     <!-- Fallback para usuários sem JavaScript -->
     <noscript>

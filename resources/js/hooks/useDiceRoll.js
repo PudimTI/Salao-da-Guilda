@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
+import { validateFormula as validateFormulaUnified, parseFormula as parseFormulaUnified } from '../utils/diceValidator';
 
 export const useDiceRoll = (campaignId) => {
     const [rolls, setRolls] = useState([]);
@@ -82,24 +83,19 @@ export const useDiceRoll = (campaignId) => {
         }
     }, [campaignId]);
 
-    // Validar fórmula
+    // Validar fórmula (usando validador unificado)
     const validateFormula = useCallback((formula) => {
-        const regex = /^[0-9]+[dD][0-9]+([+\-][0-9]+)?$/;
-        return regex.test(formula);
+        const validation = validateFormulaUnified(formula);
+        return validation.valid;
     }, []);
 
-    // Parsear fórmula para exibição
+    // Parsear fórmula para exibição (usando parser unificado)
     const parseFormula = useCallback((formula) => {
-        const match = formula.match(/^(\d+)[dD](\d+)([+\-]\d+)?$/);
-        if (!match) return null;
-
-        const [, dice, sides, modifier] = match;
-        return {
-            dice: parseInt(dice),
-            sides: parseInt(sides),
-            modifier: modifier ? parseInt(modifier) : 0,
-            display: `${dice}d${sides}${modifier || ''}`
-        };
+        try {
+            return parseFormulaUnified(formula);
+        } catch (error) {
+            return null;
+        }
     }, []);
 
     // Gerar fórmulas comuns

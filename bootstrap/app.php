@@ -13,9 +13,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Global middleware (executa em todas as requisições)
+        // Prepend para garantir que o Bearer seja injetado antes de qualquer auth
+        $middleware->prepend([ 
+            \App\Http\Middleware\InjectBearerFromCookie::class,
+        ]);
+        // (logs removidos) $middleware->append([...]);
+
         $middleware->alias([
             'log.validation' => \App\Http\Middleware\LogValidationErrors::class,
             'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'inject.bearer' => \App\Http\Middleware\InjectBearerFromCookie::class,
         ]);
         
         // Configurar CSRF para permitir rotas de API

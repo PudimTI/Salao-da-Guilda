@@ -4,23 +4,50 @@ class ProfileService {
         this.baseUrl = '/api/profile';
     }
 
+    // Obter token de autenticação do localStorage
+    getAuthToken() {
+        return localStorage.getItem('auth_token');
+    }
+
+    // Montar headers padrão com Authorization e opcionais
+    buildHeaders(extra = {}, isFormData = false) {
+        const token = this.getAuthToken();
+        const headers = {
+            'X-Requested-With': 'XMLHttpRequest',
+            ...extra,
+        };
+        if (!isFormData) {
+            headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+        }
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        return headers;
+    }
+
+    // Tratamento padrão para respostas não OK (ex.: 401)
+    async handleResponse(response) {
+        if (response.ok) return response;
+        if (response.status === 401) {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+        }
+        const text = await response.text().catch(() => '');
+        throw new Error(`HTTP error! status: ${response.status}${text ? ' - ' + text : ''}`);
+    }
+
     // Obter dados do perfil
     async getProfile(userId = null) {
         try {
             const url = userId ? `${this.baseUrl}/${userId}` : this.baseUrl;
             const response = await fetch(url, {
                 method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
+                headers: this.buildHeaders(),
                 credentials: 'same-origin'
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
+            await this.handleResponse(response);
             return await response.json();
         } catch (error) {
             console.error('Erro ao obter perfil:', error);
@@ -72,10 +99,7 @@ class ProfileService {
             const response = await fetch(this.baseUrl, {
                 method: 'PUT',
                 body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': csrfToken || '',
-                },
+                headers: this.buildHeaders({ 'X-CSRF-TOKEN': csrfToken || '' }, true),
                 credentials: 'same-origin'
             });
 
@@ -85,15 +109,7 @@ class ProfileService {
                 ok: response.ok
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('❌ ProfileService: Erro na resposta:', {
-                    status: response.status,
-                    statusText: response.statusText,
-                    body: errorText
-                });
-                throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
-            }
+            await this.handleResponse(response);
 
             const result = await response.json();
             console.log('✅ ProfileService: Perfil atualizado com sucesso:', result);
@@ -114,17 +130,11 @@ class ProfileService {
             const url = userId ? `${this.baseUrl}/characters/${userId}` : `${this.baseUrl}/characters`;
             const response = await fetch(url, {
                 method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
+                headers: this.buildHeaders(),
                 credentials: 'same-origin'
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
+            await this.handleResponse(response);
             return await response.json();
         } catch (error) {
             console.error('Erro ao obter personagens:', error);
@@ -138,17 +148,11 @@ class ProfileService {
             const url = userId ? `${this.baseUrl}/posts/${userId}?page=${page}` : `${this.baseUrl}/posts?page=${page}`;
             const response = await fetch(url, {
                 method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
+                headers: this.buildHeaders(),
                 credentials: 'same-origin'
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
+            await this.handleResponse(response);
             return await response.json();
         } catch (error) {
             console.error('Erro ao obter posts:', error);
@@ -162,17 +166,11 @@ class ProfileService {
             const url = userId ? `${this.baseUrl}/campaigns/${userId}` : `${this.baseUrl}/campaigns`;
             const response = await fetch(url, {
                 method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
+                headers: this.buildHeaders(),
                 credentials: 'same-origin'
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
+            await this.handleResponse(response);
             return await response.json();
         } catch (error) {
             console.error('Erro ao obter campanhas:', error);
@@ -188,11 +186,7 @@ class ProfileService {
             
             const response = await fetch(`${this.baseUrl}/preferences`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': csrfToken || '',
-                },
+                headers: this.buildHeaders({ 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken || '' }),
                 credentials: 'same-origin',
                 body: JSON.stringify({
                     ...preferences,
@@ -200,10 +194,7 @@ class ProfileService {
                 })
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
+            await this.handleResponse(response);
             return await response.json();
         } catch (error) {
             console.error('Erro ao atualizar preferências:', error);
@@ -219,11 +210,7 @@ class ProfileService {
             
             const response = await fetch(`${this.baseUrl}/filters`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': csrfToken || '',
-                },
+                headers: this.buildHeaders({ 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken || '' }),
                 credentials: 'same-origin',
                 body: JSON.stringify({
                     ...filters,
@@ -231,10 +218,7 @@ class ProfileService {
                 })
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
+            await this.handleResponse(response);
             return await response.json();
         } catch (error) {
             console.error('Erro ao atualizar filtros:', error);

@@ -1,20 +1,32 @@
 import React from 'react';
 
 const FriendRequestCard = ({ request, onAccept, onReject, onCancel, type = 'received' }) => {
-    const user = type === 'received' ? request.sender : request.receiver;
+    // A API retorna fromUser/toUser (relacionamentos Eloquent)
+    // Para solicitações recebidas: fromUser é quem enviou
+    // Para solicitações enviadas: toUser é quem recebeu
+    const userData = type === 'received' 
+        ? (request.from_user || request.fromUser || {})
+        : (request.to_user || request.toUser || {});
+    
+    // Extrair dados do usuário com fallbacks
+    const displayName = userData.display_name || userData.name || 'Usuário';
+    const handle = userData.handle || userData.username || '';
+    const avatar = userData.avatar_url || userData.avatar || `https://via.placeholder.com/60/8B5CF6/FFFFFF?text=${displayName.charAt(0)}`;
+    const bio = userData.bio || '';
+    const isOnline = userData.status === 'online' || userData.is_online === true;
     
     const handleAccept = () => {
         onAccept(request.id);
     };
 
     const handleReject = () => {
-        if (window.confirm(`Tem certeza que deseja rejeitar a solicitação de ${user.name}?`)) {
+        if (window.confirm(`Tem certeza que deseja rejeitar a solicitação de ${displayName}?`)) {
             onReject(request.id);
         }
     };
 
     const handleCancel = () => {
-        if (window.confirm(`Tem certeza que deseja cancelar a solicitação para ${user.name}?`)) {
+        if (window.confirm(`Tem certeza que deseja cancelar a solicitação para ${displayName}?`)) {
             onCancel(request.id);
         }
     };
@@ -25,11 +37,15 @@ const FriendRequestCard = ({ request, onAccept, onReject, onCancel, type = 'rece
                 {/* Avatar */}
                 <div className="relative">
                     <img
-                        src={user.avatar || 'https://via.placeholder.com/60/8B5CF6/FFFFFF?text=' + user.name.charAt(0)}
-                        alt={user.name}
+                        src={avatar}
+                        alt={displayName}
                         className="w-12 h-12 rounded-full object-cover"
+                        onError={(e) => {
+                            // Fallback se a imagem falhar ao carregar
+                            e.target.src = `https://via.placeholder.com/60/8B5CF6/FFFFFF?text=${displayName.charAt(0)}`;
+                        }}
                     />
-                    {user.is_online && (
+                    {isOnline && (
                         <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
                     )}
                 </div>
@@ -37,14 +53,16 @@ const FriendRequestCard = ({ request, onAccept, onReject, onCancel, type = 'rece
                 {/* Informações do usuário */}
                 <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 truncate">
-                        {user.name}
+                        {displayName}
                     </h3>
-                    <p className="text-sm text-gray-500 truncate">
-                        @{user.username}
-                    </p>
-                    {user.bio && (
+                    {handle && (
+                        <p className="text-sm text-gray-500 truncate">
+                            @{handle}
+                        </p>
+                    )}
+                    {bio && (
                         <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                            {user.bio}
+                            {bio}
                         </p>
                     )}
                     {request.message && (
@@ -55,7 +73,11 @@ const FriendRequestCard = ({ request, onAccept, onReject, onCancel, type = 'rece
                         </div>
                     )}
                     <p className="text-xs text-gray-400 mt-1">
-                        {type === 'received' ? 'Enviou solicitação' : 'Solicitação enviada'} em {new Date(request.created_at).toLocaleDateString()}
+                        {type === 'received' ? 'Enviou solicitação' : 'Solicitação enviada'} em {
+                            request.created_at 
+                                ? new Date(request.created_at).toLocaleDateString()
+                                : 'Data desconhecida'
+                        }
                     </p>
                 </div>
 

@@ -179,10 +179,32 @@ const HeaderWithChat = ({ children, showChatButton = true }) => {
                                             </a>
                                             <hr className="my-1" />
                                             <button 
-                                                onClick={() => {
-                                                    localStorage.removeItem('auth_token');
-                                                    localStorage.removeItem('user');
-                                                    window.location.href = '/login';
+                                                onClick={async () => {
+                                                    try {
+                                                        const token = localStorage.getItem('auth_token');
+                                                        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                                                        const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
+
+                                                        const headers = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+                                                        if (token) headers['Authorization'] = `Bearer ${token}`;
+                                                        if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
+
+                                                        const resp = await fetch('/logout', {
+                                                            method: 'POST',
+                                                            headers,
+                                                            credentials: 'include',
+                                                        });
+
+                                                        if (!resp.ok) {
+                                                            console.warn('Logout falhou com status', resp.status);
+                                                        }
+                                                    } catch (e) {
+                                                        console.warn('Erro durante logout', e);
+                                                    } finally {
+                                                        localStorage.removeItem('auth_token');
+                                                        localStorage.removeItem('user');
+                                                        window.location.href = '/login';
+                                                    }
                                                 }}
                                                 className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                                             >

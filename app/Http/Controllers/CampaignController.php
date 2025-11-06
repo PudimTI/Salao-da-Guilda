@@ -10,6 +10,7 @@ use App\Http\Requests\UpdateCampaignRequest;
 use App\Http\Requests\InviteToCampaignRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class CampaignController extends Controller
@@ -277,6 +278,7 @@ class CampaignController extends Controller
                         return [
                             'id' => $member->id,
                             'name' => $member->name,
+                            'display_name' => $member->display_name,
                             'role' => $member->pivot->role,
                             'status' => $member->pivot->status,
                         ];
@@ -352,6 +354,7 @@ class CampaignController extends Controller
         $campaign->load(['owner', 'members', 'tags', 'files']);
         
         return response()->json([
+            'success' => true,
             'data' => [
                 'id' => $campaign->id,
                 'name' => $campaign->name,
@@ -362,10 +365,12 @@ class CampaignController extends Controller
                 'status' => $campaign->status,
                 'visibility' => $campaign->visibility,
                 'rules' => $campaign->rules,
+                'owner_id' => $campaign->owner_id,
                 'members' => $campaign->members->map(function ($member) {
                     return [
                         'id' => $member->id,
                         'name' => $member->name,
+                        'display_name' => $member->display_name,
                         'role' => $member->pivot->role,
                         'status' => $member->pivot->status,
                     ];
@@ -548,6 +553,18 @@ class CampaignController extends Controller
         return response()->json(['message' => 'Role do membro atualizado.']);
     }
 
+    public function apiRemoveMember(Campaign $campaign, User $user)
+    {
+        $this->authorize('removeMember', [$campaign, $user]);
+        
+        $campaign->members()->detach($user->id);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Membro removido da campanha com sucesso.'
+        ]);
+    }
+
     public function getCampaignMembers(Campaign $campaign)
     {
         $user = Auth::user();
@@ -560,20 +577,25 @@ class CampaignController extends Controller
             ], 403);
         }
 
-        $members = $campaign->members()->with('user')->get();
+        $members = $campaign->members()->get();
+        $ownerId = $campaign->owner_id;
 
         return response()->json([
             'success' => true,
-            'data' => $members->map(function ($member) {
+            'data' => $members->map(function ($member) use ($ownerId) {
                 return [
-                    'user_id' => $member->user_id,
-                    'name' => $member->user->name,
-                    'display_name' => $member->user->display_name,
-                    'role' => $member->pivot->role,
-                    'status' => $member->pivot->status,
-                    'joined_at' => $member->pivot->created_at,
+                    'user_id' => $member->id,
+                    'id' => $member->id,
+                    'name' => $member->name,
+                    'display_name' => $member->display_name,
+                    'email' => $member->email,
+                    'role' => $member->pivot->role ?? 'member',
+                    'status' => $member->pivot->status ?? 'active',
+                    'joined_at' => $member->pivot->joined_at ?? $member->pivot->created_at,
+                    'is_owner' => $member->id === $ownerId,
                 ];
             }),
+            'owner_id' => $ownerId,
             'message' => 'Membros da campanha recuperados com sucesso'
         ]);
     }
@@ -595,5 +617,128 @@ class CampaignController extends Controller
             'Powered by the Apocalypse' => 'Powered by the Apocalypse',
             'Outros' => 'Outros',
         ];
+    }
+
+    /**
+     * Listar arquivos da campanha
+     */
+    public function getCampaignFiles(Campaign $campaign)
+    {
+        $user = Auth::user();
+        
+        // Verificar se o usuário é membro da campanha
+        if (!$campaign->members()->where('user_id', $user->id)->exists() && $campaign->owner_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Você não tem permissão para ver os arquivos desta campanha'
+            ], 403);
+        }
+
+        $files = \App\Models\CampaignFile::where('campaign_id', $campaign->id)
+            ->with('uploader')
+            ->orderBy('uploaded_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $files->map(function ($file) {
+                return [
+                    'id' => $file->id,
+                    'name' => $file->name,
+                    'type' => $file->type,
+                    'size' => $file->size,
+                    'url' => $file->url,
+                    'uploaded_at' => $file->uploaded_at,
+                    'uploader' => $file->uploader ? [
+                        'id' => $file->uploader->id,
+                        'name' => $file->uploader->name,
+                        'display_name' => $file->uploader->display_name ?? $file->uploader->name,
+                    ] : null,
+                ];
+            }),
+            'message' => 'Arquivos da campanha recuperados com sucesso'
+        ]);
+    }
+
+    /**
+     * Fazer upload de arquivo para a campanha
+     */
+    public function uploadCampaignFile(Request $request, Campaign $campaign)
+    {
+        $user = Auth::user();
+        
+        // Verificar se o usuário é membro da campanha
+        if (!$campaign->members()->where('user_id', $user->id)->exists() && $campaign->owner_id !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Você não tem permissão para fazer upload de arquivos nesta campanha'
+            ], 403);
+        }
+
+        $request->validate([
+            'file' => 'required|file|max:10240', // 10MB max
+        ]);
+
+        try {
+            $file = $request->file('file');
+            $originalName = $file->getClientOriginalName();
+            $extension = $file->getClientOriginalExtension();
+            $mimeType = $file->getMimeType();
+            $size = $file->getSize();
+
+            // Determinar tipo de arquivo baseado na extensão
+            $type = 'document';
+            if (in_array(strtolower($extension), ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                $type = 'image';
+            } elseif (in_array(strtolower($extension), ['mp4', 'avi', 'mov', 'webm'])) {
+                $type = 'video';
+            } elseif (in_array(strtolower($extension), ['mp3', 'wav', 'ogg'])) {
+                $type = 'audio';
+            } elseif (in_array(strtolower($extension), ['pdf', 'doc', 'docx', 'txt'])) {
+                $type = 'document';
+            }
+
+            // Armazenar arquivo
+            $path = $file->store('campaigns/' . $campaign->id, 'public');
+            $url = Storage::disk('public')->url($path);
+
+            // Criar registro do arquivo
+            $campaignFile = \App\Models\CampaignFile::create([
+                'campaign_id' => $campaign->id,
+                'uploaded_by' => $user->id,
+                'name' => $originalName,
+                'type' => $type,
+                'size' => $size,
+                'url' => $url,
+                'uploaded_at' => now(),
+            ]);
+
+            $campaignFile->load('uploader');
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $campaignFile->id,
+                    'name' => $campaignFile->name,
+                    'type' => $campaignFile->type,
+                    'size' => $campaignFile->size,
+                    'url' => $campaignFile->url,
+                    'uploaded_at' => $campaignFile->uploaded_at,
+                    'uploader' => $campaignFile->uploader ? [
+                        'id' => $campaignFile->uploader->id,
+                        'name' => $campaignFile->uploader->name,
+                        'display_name' => $campaignFile->uploader->display_name ?? $campaignFile->uploader->name,
+                    ] : null,
+                ],
+                'message' => 'Arquivo enviado com sucesso!'
+            ], 201);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao fazer upload do arquivo',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

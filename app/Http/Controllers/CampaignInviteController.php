@@ -207,11 +207,11 @@ class CampaignInviteController extends Controller
             ], 400);
         }
 
-        // Verificar se o usuário que fez a solicitação já é membro
-        if ($invite->campaign->members()->where('user_id', $invite->inviter_id)->exists()) {
+        // Verificar se o usuário que está aceitando já é membro
+        if ($invite->campaign->members()->where('user_id', $invite->invitee_id)->exists()) {
             return response()->json([
                 'success' => false,
-                'message' => 'O usuário já é membro desta campanha.'
+                'message' => 'Você já é membro desta campanha.'
             ], 400);
         }
 
@@ -221,8 +221,8 @@ class CampaignInviteController extends Controller
             'responded_at' => now(),
         ]);
 
-        // Adicionar usuário que fez a solicitação à campanha
-        $invite->campaign->members()->attach($invite->inviter_id, [
+        // Adicionar usuário que aceitou o convite à campanha (invitee_id)
+        $invite->campaign->members()->attach($invite->invitee_id, [
             'role' => 'player',
             'status' => 'active',
             'joined_at' => now(),
@@ -236,13 +236,14 @@ class CampaignInviteController extends Controller
                     'name' => $invite->campaign->name,
                 ],
                 'user' => [
-                    'id' => $invite->inviter->id,
-                    'name' => $invite->inviter->name,
+                    'id' => $invite->invitee->id,
+                    'name' => $invite->invitee->name,
+                    'display_name' => $invite->invitee->display_name,
                 ],
                 'role' => 'player',
                 'joined_at' => now(),
             ],
-            'message' => 'Solicitação aceita com sucesso!'
+            'message' => 'Convite aceito com sucesso!'
         ]);
     }
 
@@ -293,7 +294,10 @@ class CampaignInviteController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $invites->map(function ($invite) {
+            'data' => $invites->map(function ($invite) use ($campaign) {
+                // Determinar se é uma solicitação de entrada (invitee_id é o dono da campanha)
+                $isRequest = $invite->invitee_id === $campaign->owner_id;
+                
                 return [
                     'id' => $invite->id,
                     'invitee' => [
@@ -311,6 +315,9 @@ class CampaignInviteController extends Controller
                     'message' => $invite->message,
                     'sent_at' => $invite->sent_at,
                     'responded_at' => $invite->responded_at,
+                    'is_request' => $isRequest,
+                    'is_self_invite' => $invite->inviter_id === $invite->invitee_id,
+                    'campaign_owner_id' => $campaign->owner_id,
                 ];
             }),
             'message' => 'Convites enviados carregados com sucesso'
@@ -356,9 +363,15 @@ class CampaignInviteController extends Controller
     /**
      * Aprova solicitação de entrada (apenas dono/co-masters)
      */
-    public function approveRequest(Request $request, CampaignInvite $invite)
+    public function approveRequest(Request $request, Campaign $campaign, $inviteId)
     {
-        $this->authorize('invite', $invite->campaign);
+        // Buscar o convite
+        $invite = CampaignInvite::where('id', $inviteId)
+            ->where('campaign_id', $campaign->id)
+            ->with(['campaign', 'inviter'])
+            ->firstOrFail();
+        
+        $this->authorize('invite', $campaign);
         
         // Verificar se é uma solicitação (inviter_id diferente de invitee_id)
         if ($invite->inviter_id === $invite->invitee_id) {
@@ -376,8 +389,8 @@ class CampaignInviteController extends Controller
             ], 400);
         }
 
-        // Verificar se o usuário já é membro
-        if ($invite->campaign->members()->where('user_id', $invite->invitee_id)->exists()) {
+        // Verificar se o usuário que solicitou já é membro (inviter_id é quem solicitou entrada)
+        if ($campaign->members()->where('user_id', $invite->inviter_id)->exists()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Este usuário já é membro da campanha.'
@@ -391,7 +404,7 @@ class CampaignInviteController extends Controller
         ]);
 
         // Adicionar usuário à campanha (quem fez a solicitação)
-        $invite->campaign->members()->attach($invite->inviter_id, [
+        $campaign->members()->attach($invite->inviter_id, [
             'role' => 'player',
             'status' => 'active',
             'joined_at' => now(),
@@ -414,9 +427,15 @@ class CampaignInviteController extends Controller
     /**
      * Rejeita solicitação de entrada
      */
-    public function rejectRequest(Request $request, CampaignInvite $invite)
+    public function rejectRequest(Request $request, Campaign $campaign, $inviteId)
     {
-        $this->authorize('invite', $invite->campaign);
+        // Buscar o convite
+        $invite = CampaignInvite::where('id', $inviteId)
+            ->where('campaign_id', $campaign->id)
+            ->with(['campaign', 'inviter'])
+            ->firstOrFail();
+        
+        $this->authorize('invite', $campaign);
         
         // Verificar se é uma solicitação (inviter_id diferente de invitee_id)
         if ($invite->inviter_id === $invite->invitee_id) {

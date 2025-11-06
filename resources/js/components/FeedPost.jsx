@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import TagList from './TagList';
+import UserProfileCard from './UserProfileCard';
 
 const FeedPost = ({ post, onLike, onRepost, onComment }) => {
     const [isLiking, setIsLiking] = useState(false);
     const [isReposting, setIsReposting] = useState(false);
     const [showComments, setShowComments] = useState(false);
     const [newComment, setNewComment] = useState('');
+    const [showUserCard, setShowUserCard] = useState(false);
 
     const handleLike = async () => {
         if (isLiking) return;
@@ -51,6 +53,7 @@ const FeedPost = ({ post, onLike, onRepost, onComment }) => {
     };
 
     return (
+        <>
         <article className="border border-gray-200 rounded-xl overflow-hidden">
             <header className="flex items-center justify-between px-6 pt-6">
                 <div className="flex items-center space-x-3">
@@ -68,12 +71,17 @@ const FeedPost = ({ post, onLike, onRepost, onComment }) => {
                         )}
                     </div>
                     <div>
-                        <div className="text-gray-800 font-semibold">
-                            {post.author.display_name} <span className="text-gray-500 font-normal">@{post.author.handle}</span>
-                        </div>
-                        <div className="text-gray-400 text-sm">
-                            {formatDate(post.created_at)}
-                        </div>
+                        <button 
+                            onClick={() => setShowUserCard(true)}
+                            className="text-left hover:opacity-80 transition-opacity"
+                        >
+                            <div className="text-gray-800 font-semibold">
+                                {post.author.display_name} <span className="text-gray-500 font-normal">@{post.author.handle}</span>
+                            </div>
+                            <div className="text-gray-400 text-sm">
+                                {formatDate(post.created_at)}
+                            </div>
+                        </button>
                     </div>
                 </div>
                 <div className="text-gray-400">
@@ -221,6 +229,15 @@ const FeedPost = ({ post, onLike, onRepost, onComment }) => {
                 )}
             </footer>
         </article>
+
+        {/* Modal de perfil do usuário */}
+        {showUserCard && (
+            <UserProfileCard
+                user={post.author}
+                onClose={() => setShowUserCard(false)}
+            />
+        )}
+        </>
     );
 };
 

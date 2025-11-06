@@ -203,20 +203,26 @@ const ChatDMWithFriends = () => {
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-3">
                                     <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center text-white font-semibold">
-                                        {currentConversation.participants
+                                        {(currentConversation.participants
                                             ?.find(p => p.user_id !== JSON.parse(localStorage.getItem('user'))?.id)
-                                            ?.user?.name?.charAt(0) || 'U'}
+                                            ?.user?.display_name || 
+                                            currentConversation.participants
+                                                ?.find(p => p.user_id !== JSON.parse(localStorage.getItem('user'))?.id)
+                                                ?.user?.name || 'U')?.charAt(0).toUpperCase() || 'U'}
                                     </div>
                                     <div>
                                         <h2 className="text-lg font-semibold text-gray-900">
                                             {currentConversation.participants
                                                 ?.find(p => p.user_id !== JSON.parse(localStorage.getItem('user'))?.id)
-                                                ?.user?.name || 'Usuário'}
+                                                ?.user?.display_name || 
+                                                currentConversation.participants
+                                                    ?.find(p => p.user_id !== JSON.parse(localStorage.getItem('user'))?.id)
+                                                    ?.user?.name || 'Usuário'}
                                         </h2>
                                         <p className="text-sm text-gray-500">
-                                            {currentConversation.participants
+                                            @{currentConversation.participants
                                                 ?.find(p => p.user_id !== JSON.parse(localStorage.getItem('user'))?.id)
-                                                ?.user?.handle || '@usuario'}
+                                                ?.user?.handle || 'usuario'}
                                         </p>
                                     </div>
                                 </div>

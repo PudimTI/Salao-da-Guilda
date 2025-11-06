@@ -76,23 +76,46 @@ const ChatInterface = () => {
                         <div className="bg-white border-b border-gray-200 px-6 py-4">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-3">
-                                    <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center text-white font-semibold">
-                                        {currentConversation.participants
-                                            ?.find(p => p.user_id !== JSON.parse(localStorage.getItem('user'))?.id)
-                                            ?.user?.name?.charAt(0) || 'U'}
-                                    </div>
-                                    <div>
-                                        <h2 className="text-lg font-semibold text-gray-900">
-                                            {currentConversation.participants
-                                                ?.find(p => p.user_id !== JSON.parse(localStorage.getItem('user'))?.id)
-                                                ?.user?.name || 'Usuário'}
-                                        </h2>
-                                        <p className="text-sm text-gray-500">
-                                            {currentConversation.participants
-                                                ?.find(p => p.user_id !== JSON.parse(localStorage.getItem('user'))?.id)
-                                                ?.user?.handle || '@usuario'}
-                                        </p>
-                                    </div>
+                                    {(() => {
+                                        const currentUserId = JSON.parse(localStorage.getItem('user') || '{}').id;
+                                        
+                                        // Buscar conversa completa da lista para garantir que tem participantes carregados
+                                        const fullConversation = conversations.find(c => c.id === currentConversation.id) || currentConversation;
+                                        
+                                        // Os participantes já são os usuários (belongsToMany)
+                                        const otherParticipant = fullConversation.participants
+                                            ?.find(p => p.id !== currentUserId);
+                                        
+                                        return (
+                                            <>
+                                                <div className="relative">
+                                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold ${
+                                                        otherParticipant?.avatar_url ? 'bg-gray-200' : 'bg-purple-500'
+                                                    }`}>
+                                                        {otherParticipant?.avatar_url ? (
+                                                            <img
+                                                                src={otherParticipant.avatar_url}
+                                                                alt={otherParticipant?.display_name || otherParticipant?.name || 'Usuário'}
+                                                                className="w-12 h-12 rounded-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            (otherParticipant?.display_name || otherParticipant?.name || 'U')?.charAt(0).toUpperCase() || 'U'
+                                                        )}
+                                                    </div>
+                                                    {/* Indicador online */}
+                                                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+                                                </div>
+                                                <div>
+                                                    <h2 className="text-lg font-semibold text-gray-900">
+                                                        {otherParticipant?.display_name || otherParticipant?.name || 'Usuário'}
+                                                    </h2>
+                                                    <p className="text-sm text-gray-500">
+                                                        @{otherParticipant?.handle || 'usuario'}
+                                                    </p>
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <button className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
@@ -110,7 +133,7 @@ const ChatInterface = () => {
                         </div>
 
                         {/* Lista de mensagens */}
-                        <div className="flex-1 overflow-hidden">
+                        <div className="flex-1 overflow-hidden min-h-0">
                             <MessageList
                                 messages={messages}
                                 onLoadMore={handleLoadMoreMessages}

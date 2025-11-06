@@ -16,6 +16,25 @@ class StorePostRequest extends FormRequest
     }
 
     /**
+     * Prepare the data for validation.
+     */
+    protected function prepareForValidation(): void
+    {
+        // Decodificar JSON strings para arrays se necessário
+        if ($this->has('tags') && is_string($this->tags)) {
+            $this->merge([
+                'tags' => json_decode($this->tags, true) ?? []
+            ]);
+        }
+
+        if ($this->has('mentions') && is_string($this->mentions)) {
+            $this->merge([
+                'mentions' => json_decode($this->mentions, true) ?? []
+            ]);
+        }
+    }
+
+    /**
      * Get the validation rules that apply to the request.
      */
     public function rules(): array

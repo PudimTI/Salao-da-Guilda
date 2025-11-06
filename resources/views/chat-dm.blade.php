@@ -4,7 +4,7 @@
 
 @section('content')
 <!-- React App Container para Chat Completo -->
-<div id="chat-app"></div>
+<div id="chat-app" class="h-screen"></div>
 
 <!-- Fallback para usuários sem JavaScript -->
 <noscript>

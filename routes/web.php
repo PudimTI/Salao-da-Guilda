@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Broadcast;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\PasswordResetController;
@@ -54,6 +55,10 @@ Route::get('/exemplo-friendship', function () {
 Route::get('/chat', function () {
     return view('chat-dm');
 })->name('chat-dm');
+
+Route::get('/pusher-test', function () {
+    return view('pusher-test');
+})->name('pusher-test')->middleware(['inject.bearer', 'auth:sanctum']);
 
 // Rota de teste para upload (sem CSRF)
 Route::post('/test-upload', function (Illuminate\Http\Request $request) {
@@ -123,6 +128,23 @@ Route::get('/welcome', function () {
     return view('welcome');
 })->name('welcome');
 
+// Rotas de páginas estáticas do Footer
+Route::get('/sobre', function () {
+    return view('static.about');
+})->name('about');
+
+Route::get('/contato', function () {
+    return view('static.contact');
+})->name('contact');
+
+Route::get('/termos', function () {
+    return view('static.terms');
+})->name('terms');
+
+Route::get('/privacidade', function () {
+    return view('static.privacy');
+})->name('privacy');
+
 // Rota de teste sem CSRF
 Route::post('/test-no-csrf', function (Illuminate\Http\Request $request) {
     return response()->json([
@@ -146,14 +168,8 @@ Route::middleware('guest')->group(function () {
     Route::post('/reset-password', [PasswordResetController::class, 'resetPassword'])->name('password.update');
 });
 
-// Rotas protegidas
-Route::middleware('auth')->group(function () {
-    Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
-    
-    Route::get('/perfil', function () {
-        return view('profile');
-    })->name('profile');
-    
+// Rotas de API protegidas - aceitam tokens Sanctum
+Route::middleware(['auth:sanctum'])->group(function () {
     // Rotas de perfil
     Route::prefix('api/profile')->group(function () {
         Route::get('/', [ProfileController::class, 'show'])->name('api.profile.show');
@@ -163,9 +179,59 @@ Route::middleware('auth')->group(function () {
         Route::get('/campaigns', [ProfileController::class, 'campaigns'])->name('api.profile.campaigns');
         Route::put('/preferences', [ProfileController::class, 'updatePreferences'])->name('api.profile.preferences');
         Route::put('/filters', [ProfileController::class, 'updateFilters'])->name('api.profile.filters');
-        
-
     });
+    
+    // Rotas de campanhas API
+    Route::prefix('api/campaigns')->group(function () {
+        Route::get('/', [CampaignController::class, 'apiIndex'])->name('api.campaigns.index');
+        Route::get('/public', [CampaignController::class, 'apiPublic'])->name('api.campaigns.public');
+        Route::get('/{campaign}', [CampaignController::class, 'apiShow'])->name('api.campaigns.show');
+        Route::post('/', [CampaignController::class, 'apiStore'])->name('api.campaigns.store');
+        Route::put('/{campaign}', [CampaignController::class, 'apiUpdate'])->name('api.campaigns.update');
+        Route::delete('/{campaign}', [CampaignController::class, 'apiDestroy'])->name('api.campaigns.destroy');
+        Route::post('/{campaign}/invite', [CampaignController::class, 'apiInvite'])->name('api.campaigns.invite');
+        Route::post('/{campaign}/leave', [CampaignController::class, 'apiLeave'])->name('api.campaigns.leave');
+        Route::patch('/{campaign}/members/{user}/role', [CampaignController::class, 'apiUpdateMemberRole'])->name('api.campaigns.update-member-role');
+        Route::delete('/{campaign}/members/{user}', [CampaignController::class, 'apiRemoveMember'])->name('api.campaigns.remove-member');
+    });
+    
+    // Rotas de notificações
+    Route::prefix('api/notifications')->group(function () {
+        Route::get('/', [NotificationController::class, 'index'])->name('api.notifications.index');
+        Route::post('/mark-as-read', [NotificationController::class, 'markAsRead'])->name('api.notifications.mark-as-read');
+        Route::get('/unread-count', [NotificationController::class, 'getUnreadCount'])->name('api.notifications.unread-count');
+    });
+    
+    // Rotas de posts
+    Route::prefix('api/posts')->middleware('log.validation')->group(function () {
+        Route::get('/', [PostController::class, 'index'])->name('api.posts.index');
+        Route::post('/', [PostController::class, 'store'])->name('api.posts.store');
+        Route::get('/{post}', [PostController::class, 'show'])->name('api.posts.show');
+        Route::put('/{post}', [PostController::class, 'update'])->name('api.posts.update');
+        Route::delete('/{post}', [PostController::class, 'destroy'])->name('api.posts.destroy');
+        Route::post('/{post}/like', [PostController::class, 'like'])->name('api.posts.like');
+        Route::post('/{post}/repost', [PostController::class, 'repost'])->name('api.posts.repost');
+        Route::post('/{post}/comment', [PostController::class, 'comment'])->name('api.posts.comment');
+        Route::get('/search', [PostController::class, 'search'])->name('api.posts.search');
+    });
+
+    // Rotas de mídia
+    Route::prefix('api/media')->middleware('log.validation')->group(function () {
+        Route::post('/upload', [MediaController::class, 'upload'])->name('api.media.upload');
+        Route::get('/', [MediaController::class, 'index'])->name('api.media.index');
+        Route::delete('/{media}', [MediaController::class, 'destroy'])->name('api.media.destroy');
+        Route::get('/{media}/url', [MediaController::class, 'url'])->name('api.media.url');
+    });
+});
+
+// Rotas protegidas (aceitam sessão web e tokens Sanctum). O middleware 'inject.bearer'
+// permite autenticação por Bearer Token armazenado em cookie 'auth_token' em navegação full-page
+Route::middleware(['inject.bearer', 'auth:sanctum'])->group(function () {
+    Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
+    
+    Route::get('/perfil', function () {
+        return view('profile');
+    })->name('profile');
     
     Route::get('/campanha', function () {
         return view('campaign-react');
@@ -209,41 +275,12 @@ Route::middleware('auth')->group(function () {
         return view('campaign-mindmap', compact('campaign'));
     })->name('campaigns.mindmap');
     
-    
-    // Rotas de posts
-    Route::prefix('api/posts')->middleware('log.validation')->group(function () {
-        Route::get('/', [PostController::class, 'index'])->name('api.posts.index');
-        Route::post('/', [PostController::class, 'store'])->name('api.posts.store');
-        Route::get('/{post}', [PostController::class, 'show'])->name('api.posts.show');
-        Route::put('/{post}', [PostController::class, 'update'])->name('api.posts.update');
-        Route::delete('/{post}', [PostController::class, 'destroy'])->name('api.posts.destroy');
-        Route::post('/{post}/like', [PostController::class, 'like'])->name('api.posts.like');
-        Route::post('/{post}/repost', [PostController::class, 'repost'])->name('api.posts.repost');
-        Route::post('/{post}/comment', [PostController::class, 'comment'])->name('api.posts.comment');
-        Route::get('/search', [PostController::class, 'search'])->name('api.posts.search');
-    });
-
-    // Rotas de mídia
-    Route::prefix('api/media')->middleware('log.validation')->group(function () {
-        Route::post('/upload', [MediaController::class, 'upload'])->name('api.media.upload');
-        Route::get('/', [MediaController::class, 'index'])->name('api.media.index');
-        Route::delete('/{media}', [MediaController::class, 'destroy'])->name('api.media.destroy');
-        Route::get('/{media}/url', [MediaController::class, 'url'])->name('api.media.url');
-    });
-
-    // Rotas de notificações
-    Route::prefix('api/notifications')->group(function () {
-        Route::get('/', [NotificationController::class, 'index'])->name('api.notifications.index');
-        Route::post('/mark-as-read', [NotificationController::class, 'markAsRead'])->name('api.notifications.mark-as-read');
-        Route::get('/unread-count', [NotificationController::class, 'getUnreadCount'])->name('api.notifications.unread-count');
-    });
-    
     // Rotas de personagens
     Route::resource('characters', CharacterController::class);
     Route::post('/characters/{character}/join-campaign', [CharacterController::class, 'joinCampaign'])->name('characters.join-campaign');
     Route::delete('/characters/{character}/campaigns/{campaign}', [CharacterController::class, 'leaveCampaign'])->name('characters.leave-campaign');
     
-    // Rotas de API para componentes React
+    // Rotas de API para componentes React (usando sessão)
     Route::prefix('api/characters')->group(function () {
         Route::get('/', [CharacterController::class, 'apiIndex'])->name('api.characters.index');
         Route::get('/{character}', [CharacterController::class, 'apiShow'])->name('api.characters.show');
@@ -253,22 +290,13 @@ Route::middleware('auth')->group(function () {
         Route::post('/{character}/join-campaign', [CharacterController::class, 'apiJoinCampaign'])->name('api.characters.join-campaign');
         Route::delete('/{character}/campaigns/{campaign}', [CharacterController::class, 'apiLeaveCampaign'])->name('api.characters.leave-campaign');
     });
-    
-    Route::prefix('api/campaigns')->group(function () {
-        Route::get('/', [CampaignController::class, 'apiIndex'])->name('api.campaigns.index');
-        Route::get('/public', [CampaignController::class, 'apiPublic'])->name('api.campaigns.public');
-        Route::get('/{campaign}', [CampaignController::class, 'apiShow'])->name('api.campaigns.show');
-        Route::post('/', [CampaignController::class, 'apiStore'])->name('api.campaigns.store');
-        Route::put('/{campaign}', [CampaignController::class, 'apiUpdate'])->name('api.campaigns.update');
-        Route::delete('/{campaign}', [CampaignController::class, 'apiDestroy'])->name('api.campaigns.destroy');
-        Route::post('/{campaign}/invite', [CampaignController::class, 'apiInvite'])->name('api.campaigns.invite');
-        Route::post('/{campaign}/leave', [CampaignController::class, 'apiLeave'])->name('api.campaigns.leave');
-        Route::patch('/{campaign}/members/{user}/role', [CampaignController::class, 'apiUpdateMemberRole'])->name('api.campaigns.update-member-role');
-    });
 });
 
-// Rotas Admin para Mindmap
-Route::prefix('admin')->middleware(['auth', 'admin'])->group(function () {
+// Rota de autenticação do broadcasting (aceita tokens Sanctum)
+Broadcast::routes(['middleware' => ['inject.bearer', 'auth:sanctum']]);
+
+// Rotas Admin para Mindmap (aceitam sessão web e tokens Sanctum)
+Route::prefix('admin')->middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::get('/mindmap', [App\Http\Controllers\Admin\MindmapController::class, 'index'])->name('admin.mindmap.index');
     Route::get('/mindmap/{campaign}', [App\Http\Controllers\Admin\MindmapController::class, 'show'])->name('admin.mindmap.show');
     Route::get('/mindmap/{campaign}/data', [App\Http\Controllers\Admin\MindmapController::class, 'getMindmapData'])->name('admin.mindmap.data');

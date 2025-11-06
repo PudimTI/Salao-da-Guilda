@@ -22,7 +22,7 @@ class MessageSent implements ShouldBroadcast
      */
     public function __construct(Message $message)
     {
-        $this->message = $message->load(['sender', 'conversation.participants']);
+        $this->message = $message->load(['sender', 'repliedTo.sender', 'conversation.participants']);
     }
 
     /**
@@ -52,21 +52,38 @@ class MessageSent implements ShouldBroadcast
      */
     public function broadcastWith(): array
     {
-        return [
+        $data = [
             'message' => [
                 'id' => $this->message->id,
                 'content' => $this->message->content,
                 'media_url' => $this->message->media_url,
+                'reply_to' => $this->message->reply_to,
                 'created_at' => $this->message->created_at,
                 'edited_at' => $this->message->edited_at,
                 'sender' => [
                     'id' => $this->message->sender->id,
                     'name' => $this->message->sender->name,
+                    'display_name' => $this->message->sender->display_name ?? $this->message->sender->name,
                     'handle' => $this->message->sender->handle,
                     'avatar' => $this->message->sender->avatar_url ?? null,
                 ],
                 'conversation_id' => $this->message->conversation_id,
             ]
         ];
+        
+        // Incluir dados da mensagem respondida se existir
+        if ($this->message->repliedTo) {
+            $data['message']['replied_to_message'] = [
+                'id' => $this->message->repliedTo->id,
+                'content' => $this->message->repliedTo->content,
+                'sender' => [
+                    'id' => $this->message->repliedTo->sender->id,
+                    'name' => $this->message->repliedTo->sender->name,
+                    'handle' => $this->message->repliedTo->sender->handle,
+                ],
+            ];
+        }
+        
+        return $data;
     }
 }

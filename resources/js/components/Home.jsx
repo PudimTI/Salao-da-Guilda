@@ -4,6 +4,7 @@ import Hero from './Hero';
 import CampaignCard from './CampaignCard';
 import NewAdventures from './NewAdventures';
 import Footer from './Footer';
+import CollapsedChatButton from './CollapsedChatButton';
 
 const Home = () => {
     const [userCampaigns, setUserCampaigns] = useState([]);
@@ -11,48 +12,145 @@ const Home = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        loadUserCampaigns();
-        loadRecommendedCampaign();
+        // Aguardar um pouco para garantir que o localStorage foi carregado
+        const checkAndLoad = async () => {
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
+            const token = localStorage.getItem('auth_token');
+            console.log('👤 [Home] Verificando autenticação...');
+            console.log('🎫 [Home] Token encontrado:', token ? 'SIM' : 'NÃO');
+            
+            if (!token) {
+                console.warn('⚠️ [Home] Sem token. Redirecionando para /login');
+                try {
+                    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                    const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
+                    const headers = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+                    if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
+                    await fetch('/logout', { method: 'POST', headers, credentials: 'include' }).catch(() => {});
+                } catch (_) {}
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('user');
+                window.location.href = '/login';
+                return;
+            }
+
+            console.log('✅ [Home] Token válido. Carregando dados...');
+            loadUserCampaigns();
+            loadRecommendedCampaign();
+        };
+        
+        checkAndLoad();
     }, []);
 
     const loadUserCampaigns = async () => {
         try {
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                console.warn('⚠️ [Home] Sem token. Redirecionando para /login');
+                window.location.href = '/login';
+                return;
+            }
+            
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
+            
+            const headers = {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            };
+            
+            if (csrfToken) {
+                headers['X-CSRF-TOKEN'] = csrfToken;
+            }
+            
+            console.log('📤 [Home] Carregando campanhas do usuário...');
             const response = await fetch('/api/campaigns', {
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                }
+                headers
             });
+            
+            console.log('📥 [Home] Resposta de campanhas:', response.status);
             
             if (response.ok) {
                 const data = await response.json();
+                console.log('✅ [Home] Campanhas carregadas:', data);
                 // Pegar as 3 últimas campanhas do usuário
-                setUserCampaigns(data.data.slice(0, 3));
+                if (data.data && Array.isArray(data.data)) {
+                    setUserCampaigns(data.data.slice(0, 3));
+                }
+            } else if (response.status === 401) {
+                console.warn('⚠️ [Home] 401 ao carregar campanhas. Efetuando logout e redirecionando');
+                try {
+                    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                    const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
+                    const headers = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+                    if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
+                    await fetch('/logout', { method: 'POST', headers, credentials: 'include' });
+                } catch (_) {}
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('user');
+                window.location.href = '/login';
+            } else {
+                console.error('❌ [Home] Erro ao carregar campanhas:', response.status);
             }
         } catch (error) {
-            console.error('Erro ao carregar campanhas do usuário:', error);
+            console.error('❌ [Home] Erro ao carregar campanhas do usuário:', error);
+        } finally {
+            setLoading(false);
         }
     };
 
     const loadRecommendedCampaign = async () => {
         try {
-            const response = await fetch('/api/recommendations/campaigns?limit=1', {
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                }
+            const token = localStorage.getItem('auth_token');
+            if (!token) {
+                console.warn('⚠️ [Home] Sem token. Redirecionando para /login');
+                window.location.href = '/login';
+                return;
+            }
+            
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
+            
+            const headers = {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            };
+            
+            if (csrfToken) {
+                headers['X-CSRF-TOKEN'] = csrfToken;
+            }
+            
+            console.log('📤 [Home] Carregando recomendações...');
+            const response = await fetch('/api/recommendations?type=campaign&limit=1', {
+                headers
             });
+            
+            console.log('📥 [Home] Resposta de recomendações:', response.status);
             
             if (response.ok) {
                 const data = await response.json();
-                if (data.data && data.data.length > 0) {
-                    setRecommendedCampaign(data.data[0]);
+                console.log('✅ [Home] Recomendações carregadas:', data);
+                if (data.data && data.data.data && data.data.data.length > 0) {
+                    setRecommendedCampaign(data.data.data[0].target);
                 }
+            } else if (response.status === 401) {
+                console.warn('⚠️ [Home] 401 ao carregar recomendações. Efetuando logout e redirecionando');
+                try {
+                    const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+                    const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
+                    const headers = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+                    if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
+                    await fetch('/logout', { method: 'POST', headers, credentials: 'include' });
+                } catch (_) {}
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('user');
+                window.location.href = '/login';
+            } else {
+                console.error('❌ [Home] Erro ao carregar recomendações:', response.status);
             }
         } catch (error) {
-            console.error('Erro ao carregar campanha recomendada:', error);
-        } finally {
-            setLoading(false);
+            console.error('❌ [Home] Erro ao carregar campanha recomendada:', error);
         }
     };
 
@@ -104,6 +202,9 @@ const Home = () => {
             </main>
             
             <Footer />
+            
+            {/* Botão de chat recolhido */}
+            <CollapsedChatButton />
         </div>
     );
 };

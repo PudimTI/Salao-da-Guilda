@@ -36,14 +36,30 @@ const UserSearch = ({ onUserSelect, onClose }) => {
 
             const response = await axios.get('/api/users/search', {
                 params: { 
-                    q: query,
-                    per_page: 10,
-                    exclude_friends: false // Incluir amigos e não-amigos
+                    query: query, // Corrigido: usar 'query' em vez de 'q'
+                    per_page: 10
                 }
             });
 
             if (response.data.success) {
-                setUsers(response.data.data.data || []);
+                // A resposta pode estar em data (array) ou data.data (paginação)
+                const usersData = Array.isArray(response.data.data) 
+                    ? response.data.data 
+                    : (response.data.data?.data || response.data.data || []);
+                
+                // Mapear campos da API para o formato esperado pelo componente
+                const mappedUsers = usersData.map(user => ({
+                    id: user.id,
+                    name: user.name || user.display_name || 'Usuário',
+                    display_name: user.display_name || user.name,
+                    handle: user.username || user.handle || 'usuario',
+                    avatar_url: user.avatar || user.avatar_url,
+                    bio: user.bio,
+                    is_online: user.is_online || false,
+                    last_seen: user.last_seen || user.last_login_at
+                }));
+                
+                setUsers(mappedUsers);
             }
         } catch (err) {
             setError('Erro ao buscar usuários');
@@ -175,16 +191,16 @@ const UserSearch = ({ onUserSelect, onClose }) => {
                                 {/* Avatar */}
                                 <div className="relative">
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
-                                        user.avatar_url ? 'bg-gray-200' : 'bg-purple-500'
+                                        (user.avatar_url || user.avatar) ? 'bg-gray-200' : 'bg-purple-500'
                                     }`}>
-                                        {user.avatar_url ? (
+                                        {(user.avatar_url || user.avatar) ? (
                                             <img
-                                                src={user.avatar_url}
-                                                alt={user.name}
+                                                src={user.avatar_url || user.avatar}
+                                                alt={user.display_name || user.name || 'Usuário'}
                                                 className="w-10 h-10 rounded-full object-cover"
                                             />
                                         ) : (
-                                            user.name?.charAt(0) || 'U'
+                                            (user.display_name || user.name || 'U')?.charAt(0).toUpperCase() || 'U'
                                         )}
                                     </div>
                                     
@@ -196,7 +212,7 @@ const UserSearch = ({ onUserSelect, onClose }) => {
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between">
                                         <h3 className="text-sm font-medium text-gray-900 truncate">
-                                            {user.name || 'Usuário'}
+                                            {user.display_name || user.name || 'Usuário'}
                                         </h3>
                                         <span className="text-xs text-gray-500">
                                             {formatUserStatus(user)}
@@ -204,7 +220,7 @@ const UserSearch = ({ onUserSelect, onClose }) => {
                                     </div>
                                     
                                     <p className="text-xs text-gray-500 truncate">
-                                        @{user.handle || 'usuario'}
+                                        @{user.handle || user.username || 'usuario'}
                                     </p>
                                     
                                     {/* Informações adicionais */}

@@ -22,7 +22,7 @@ class FriendshipService
         $query = Friendship::where('user_id', $userId)
             ->where('state', $status)
             ->with(['friend' => function($query) {
-                $query->select('id', 'handle', 'display_name', 'avatar_url', 'status');
+                $query->select('id', 'handle', 'display_name', 'avatar_url', 'status', 'email');
             }]);
 
         if ($search) {

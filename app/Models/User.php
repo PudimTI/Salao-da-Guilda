@@ -8,10 +8,11 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasApiTokens;
 
     protected $table = 'users';
     public $incrementing = true;
@@ -26,6 +27,7 @@ class User extends Authenticatable
         'avatar_url',
         'bio',
         'status',
+        'role',
         'last_login_at',
     ];
 
@@ -47,6 +49,25 @@ class User extends Authenticatable
     public function getAuthPassword()
     {
         return $this->password_hash;
+    }
+
+    /**
+     * Get the user's name for Filament compatibility.
+     * Returns display_name if available, otherwise handle, otherwise email.
+     * This creates a virtual 'name' attribute that Filament expects.
+     */
+    public function getNameAttribute(): string
+    {
+        return $this->attributes['display_name'] ?? $this->attributes['handle'] ?? $this->attributes['email'] ?? '';
+    }
+
+    /**
+     * Get the user's name (method for Filament compatibility).
+     * Filament calls this method to get the user's name.
+     */
+    public function getName(): string
+    {
+        return $this->attributes['display_name'] ?? $this->attributes['handle'] ?? $this->attributes['email'] ?? '';
     }
 
     public function profile(): HasOne
@@ -144,5 +165,37 @@ class User extends Authenticatable
     public function uploadedCampaignFiles(): HasMany
     {
         return $this->hasMany(CampaignFile::class, 'uploaded_by');
+    }
+
+    /**
+     * Verifica se o usuário possui um role específico
+     */
+    public function hasRole(string $role): bool
+    {
+        return $this->role === $role;
+    }
+
+    /**
+     * Verifica se o usuário é administrador
+     */
+    public function isAdmin(): bool
+    {
+        return $this->hasRole('admin');
+    }
+
+    /**
+     * Verifica se o usuário é moderador
+     */
+    public function isModerator(): bool
+    {
+        return $this->hasRole('moderator') || $this->isAdmin();
+    }
+
+    /**
+     * Verifica se o usuário pode acessar o painel Filament
+     */
+    public function canAccessPanel(\Filament\Panel $panel): bool
+    {
+        return $this->isAdmin();
     }
 }

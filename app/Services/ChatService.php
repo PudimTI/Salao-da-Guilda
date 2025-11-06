@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Message;
+use App\Models\MessageReadMarker;
 use App\Models\User;
 use App\Events\UserJoinedConversation;
 use App\Events\UserLeftConversation;
@@ -24,9 +25,15 @@ class ChatService
         $query = Conversation::whereHas('participants', function ($q) use ($userId) {
             $q->where('user_id', $userId);
         })
-        ->with(['participants.user', 'campaign', 'messages' => function ($q) {
-            $q->latest()->limit(1);
-        }])
+        ->with([
+            'participants',
+            'campaign', 
+            'messages' => function ($q) {
+                $q->with('sender')
+                  ->latest()
+                  ->limit(20); // Carregar primeiras 20 mensagens para pré-visualização
+            }
+        ])
         ->orderBy('last_activity_at', 'desc');
 
         // Filtros
@@ -38,7 +45,7 @@ class ChatService
             $search = $options['search'];
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
-                  ->orWhereHas('participants.user', function ($userQuery) use ($search) {
+                  ->orWhereHas('participants', function ($userQuery) use ($search) {
                       $userQuery->where('name', 'like', "%{$search}%")
                                ->orWhere('handle', 'like', "%{$search}%");
                   });
@@ -64,21 +71,36 @@ class ChatService
                 'last_activity_at' => now(),
             ]);
 
-            // Adicionar participantes
-            $participants = array_merge([$data['creator_id']], $data['participants']);
-            $roles = ['owner']; // Primeiro é sempre owner
-            $roles = array_merge($roles, array_fill(1, count($data['participants']), 'member'));
-
-            foreach ($participants as $index => $userId) {
-                ConversationParticipant::create([
-                    'conversation_id' => $conversation->id,
-                    'user_id' => $userId,
-                    'role' => $roles[$index],
-                    'joined_at' => now(),
-                ]);
+            // Adicionar participantes (remover duplicatas)
+            $creatorId = $data['creator_id'];
+            $participantIds = $data['participants'] ?? [];
+            
+            // Garantir que o criador está incluído e remover duplicatas
+            $allParticipantIds = array_unique(array_merge([$creatorId], $participantIds));
+            
+            foreach ($allParticipantIds as $userId) {
+                // Verificar se o participante já existe (proteção contra race condition)
+                $existing = ConversationParticipant::where('conversation_id', $conversation->id)
+                    ->where('user_id', $userId)
+                    ->first();
+                
+                if (!$existing) {
+                    // Determinar role: owner se for o criador, member caso contrário
+                    $role = ($userId === $creatorId) ? 'owner' : 'member';
+                    
+                    ConversationParticipant::create([
+                        'conversation_id' => $conversation->id,
+                        'user_id' => $userId,
+                        'role' => $role,
+                        'joined_at' => now(),
+                    ]);
+                }
             }
 
-            return $conversation->load(['participants.user', 'campaign']);
+            return $conversation->load([
+                'participants',
+                'campaign'
+            ]);
         });
     }
 
@@ -97,7 +119,10 @@ class ChatService
             ->whereDoesntHave('participants', function ($q) use ($userId1, $userId2) {
                 $q->whereNotIn('user_id', [$userId1, $userId2]);
             })
-            ->with(['participants.user', 'campaign'])
+            ->with([
+                'participants',
+                'campaign'
+            ])
             ->first();
     }
 
@@ -107,7 +132,7 @@ class ChatService
     public function getConversationMessages(int $conversationId, array $options = []): LengthAwarePaginator
     {
         $query = Message::where('conversation_id', $conversationId)
-            ->with(['sender'])
+            ->with(['sender', 'repliedTo.sender'])
             ->orderBy('created_at', 'desc');
 
         // Paginação
@@ -151,16 +176,23 @@ class ChatService
     {
         $conversation = Conversation::findOrFail($conversationId);
         
-        ConversationParticipant::create([
-            'conversation_id' => $conversationId,
-            'user_id' => $userId,
-            'role' => 'member',
-            'joined_at' => now(),
-        ]);
+        // Verificar se o participante já existe (evitar duplicatas)
+        $existing = ConversationParticipant::where('conversation_id', $conversationId)
+            ->where('user_id', $userId)
+            ->first();
+        
+        if (!$existing) {
+            ConversationParticipant::create([
+                'conversation_id' => $conversationId,
+                'user_id' => $userId,
+                'role' => 'member',
+                'joined_at' => now(),
+            ]);
 
-        // Disparar evento
-        $user = User::findOrFail($userId);
-        broadcast(new UserJoinedConversation($conversation, $user))->toOthers();
+            // Disparar evento apenas se foi realmente adicionado
+            $user = User::findOrFail($userId);
+            broadcast(new UserJoinedConversation($conversation, $user))->toOthers();
+        }
     }
 
     /**
@@ -184,9 +216,26 @@ class ChatService
      */
     public function markMessagesAsRead(int $conversationId, int $userId): void
     {
-        // Aqui você pode implementar um sistema de marcação de mensagens como lidas
-        // Por exemplo, usando uma tabela message_reads ou atualizando um campo na conversa
-        // Por enquanto, vamos apenas atualizar a última atividade
+        // Buscar a última mensagem da conversa
+        $lastMessage = Message::where('conversation_id', $conversationId)
+            ->latest('id')
+            ->first();
+        
+        if ($lastMessage) {
+            // Criar ou atualizar o marcador de leitura
+            MessageReadMarker::updateOrCreate(
+                [
+                    'conversation_id' => $conversationId,
+                    'user_id' => $userId,
+                ],
+                [
+                    'last_read_message_id' => $lastMessage->id,
+                    'last_read_at' => now(),
+                ]
+            );
+        }
+        
+        // Atualizar última atividade da conversa
         Conversation::where('id', $conversationId)
             ->update(['last_activity_at' => now()]);
     }
@@ -239,8 +288,63 @@ class ChatService
      */
     public function getUnreadMessagesCount(int $userId): int
     {
-        // Implementar lógica de mensagens não lidas
-        // Por enquanto, retornar 0
-        return 0;
+        // Buscar todas as conversas onde o usuário é participante
+        $conversationIds = Conversation::whereHas('participants', function ($q) use ($userId) {
+            $q->where('user_id', $userId);
+        })->pluck('id');
+        
+        if ($conversationIds->isEmpty()) {
+            return 0;
+        }
+        
+        $totalUnread = 0;
+        
+        foreach ($conversationIds as $conversationId) {
+            // Buscar o marcador de leitura do usuário para esta conversa
+            $readMarker = MessageReadMarker::where('conversation_id', $conversationId)
+                ->where('user_id', $userId)
+                ->first();
+            
+            if ($readMarker && $readMarker->last_read_message_id) {
+                // Contar mensagens após a última lida
+                $unreadCount = Message::where('conversation_id', $conversationId)
+                    ->where('id', '>', $readMarker->last_read_message_id)
+                    ->where('sender_id', '!=', $userId)
+                    ->count();
+            } else {
+                // Se não há marcador, todas as mensagens não próprias são não lidas
+                $unreadCount = Message::where('conversation_id', $conversationId)
+                    ->where('sender_id', '!=', $userId)
+                    ->count();
+            }
+            
+            $totalUnread += $unreadCount;
+        }
+        
+        return $totalUnread;
+    }
+    
+    /**
+     * Obter contagem de mensagens não lidas por conversa
+     */
+    public function getUnreadMessagesCountByConversation(int $conversationId, int $userId): int
+    {
+        // Buscar o marcador de leitura do usuário para esta conversa
+        $readMarker = MessageReadMarker::where('conversation_id', $conversationId)
+            ->where('user_id', $userId)
+            ->first();
+        
+        if ($readMarker && $readMarker->last_read_message_id) {
+            // Contar mensagens após a última lida
+            return Message::where('conversation_id', $conversationId)
+                ->where('id', '>', $readMarker->last_read_message_id)
+                ->where('sender_id', '!=', $userId)
+                ->count();
+        } else {
+            // Se não há marcador, todas as mensagens não próprias são não lidas
+            return Message::where('conversation_id', $conversationId)
+                ->where('sender_id', '!=', $userId)
+                ->count();
+        }
     }
 }

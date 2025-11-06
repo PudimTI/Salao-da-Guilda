@@ -51,3 +51,22 @@ export { default as FindCampaignsPage } from './FindCampaignsPage';
 export { default as InvitesPage } from './InvitesPage';
 export { default as CampaignCreatePage } from './CampaignCreatePage';
 export { default as CampaignEditPage } from './CampaignEditPage';
+
+// Componentes de Chat
+export { default as ChatInterface } from './ChatInterface';
+export { default as ChatSidebar } from './ChatSidebar';
+export { default as ChatList } from './ChatList';
+// CampaignChat já está exportado acima na seção "Componentes da Campanha"
+export { default as FloatingChat } from './FloatingChat';
+export { default as MessageList } from './MessageList';
+export { default as MessageInput } from './MessageInput';
+export { default as MessageBubble } from './MessageBubble';
+export { default as TypingIndicator } from './TypingIndicator';
+export { default as UserSearch } from './UserSearch';
+export { default as CollapsedChatButton } from './CollapsedChatButton';
+export { default as PusherConnectionTest } from './PusherConnectionTest';
+export { default as CampaignChatHeader } from './CampaignChatHeader';
+export { default as CampaignChatSidebar } from './CampaignChatSidebar';
+export { default as CampaignMasterSidebar } from './CampaignMasterSidebar';
+export { default as CampaignFilesList } from './CampaignFilesList';
+export { default as CampaignFileUpload } from './CampaignFileUpload';

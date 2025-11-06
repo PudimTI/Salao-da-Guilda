@@ -13,6 +13,25 @@ const Recommendations = () => {
             setLoading(true);
             setError(null);
             
+            // Verificar se há token de autenticação
+            console.log('🔍 [Recommendations] Verificando localStorage...');
+            console.log('📦 [Recommendations] Todos os itens do localStorage:', { ...localStorage });
+            
+            const token = localStorage.getItem('auth_token');
+            console.log('🎫 [Recommendations] Token encontrado:', token ? `SIM (${token.substring(0, 20)}...)` : 'NÃO');
+            console.log('🎫 [Recommendations] Token completo:', token);
+            
+            if (!token) {
+                console.error('❌ [Recommendations] Token não encontrado no localStorage');
+                setError('Você precisa estar autenticado para ver recomendações. Redirecionando para login...');
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 2000);
+                return;
+            }
+            
+            console.log('✅ [Recommendations] Token encontrado, fazendo requisição...');
+            
             const response = await apiGet('/api/recommendations?type=campaign&limit=3');
             
             if (response.success && response.data.data) {
@@ -26,8 +45,18 @@ const Recommendations = () => {
             }
         } catch (err) {
             console.error('Erro ao buscar recomendações:', err);
-            setError('Erro ao carregar recomendações');
-            handleApiError(err);
+            
+            // Se for erro 401, mostrar mensagem específica
+            if (err.status === 401 || err.message.includes('401') || err.message.includes('Não autenticado')) {
+                setError('Sua sessão expirou. Redirecionando para login...');
+                setTimeout(() => {
+                    localStorage.removeItem('auth_token');
+                    window.location.href = '/login';
+                }, 2000);
+            } else {
+                setError('Erro ao carregar recomendações');
+                handleApiError(err);
+            }
         } finally {
             setLoading(false);
         }
@@ -75,6 +104,11 @@ const Recommendations = () => {
     };
 
     useEffect(() => {
+        // Chamar função de debug global
+        if (typeof window.debugLocalStorage === 'function') {
+            window.debugLocalStorage();
+        }
+        
         fetchRecommendations();
     }, []);
 
@@ -99,6 +133,8 @@ const Recommendations = () => {
 
     // Se houver erro
     if (error) {
+        const isAuthError = error.includes('autenticado') || error.includes('sessão expirou') || error.includes('Redirecionando');
+        
         return (
             <section className="py-16 px-6 bg-rose-50">
                 <div className="max-w-5xl mx-auto">
@@ -111,13 +147,20 @@ const Recommendations = () => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
                             </svg>
                             <p className="text-lg font-medium">{error}</p>
+                            {isAuthError && (
+                                <p className="text-sm text-gray-600 mt-2">
+                                    Por favor, faça login novamente para continuar.
+                                </p>
+                            )}
                         </div>
-                        <button 
-                            onClick={fetchRecommendations}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium"
-                        >
-                            Tentar novamente
-                        </button>
+                        {!isAuthError && (
+                            <button 
+                                onClick={fetchRecommendations}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium"
+                            >
+                                Tentar novamente
+                            </button>
+                        )}
                     </div>
                 </div>
             </section>

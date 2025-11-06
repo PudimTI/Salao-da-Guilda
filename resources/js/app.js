@@ -9,6 +9,10 @@ import './friendship-integration';
 import { createRoot } from 'react-dom/client';
 import React from 'react';
 import { Home, Feed, CampaignsPage, UserProfilePage, CampaignPage, CharactersPage, CharacterDetailPage, CampaignsListPage, CampaignDetailPage, FindCampaignsPage, MindmapPage, InvitesPage, CampaignCreatePage, CampaignEditPage } from './components';
+import ChatDMPage from './pages/ChatDMPage';
+import ChatInterface from './components/ChatInterface';
+import CampaignChat from './components/CampaignChat';
+import PusherTestPage from './pages/PusherTestPage';
 
 // Exportar componentes globais para uso em scripts inline
 window.React = React;
@@ -21,6 +25,12 @@ window.CampaignEditPage = CampaignEditPage;
 // Função para inicializar a aplicação React
 window.initReactComponents = () => {
     console.log('initReactComponents: Iniciando...');
+    // Evitar montar apps na página de login para prevenir loops/redirecionamentos indevidos
+    const path = window.location.pathname || '';
+    if (path.startsWith('/login')) {
+        console.log('initReactComponents: Página de login detectada. Ignorando bootstrap de apps.');
+        return;
+    }
     
     // Teste simples primeiro
     const debugElement = document.getElementById('debug-app');
@@ -83,7 +93,23 @@ window.initReactComponents = () => {
         console.log('Campaign Chat: Montando chat da campanha');
         const campaignId = campaignChatElement.dataset.campaignId;
         const root = createRoot(campaignChatElement);
-        root.render(<CampaignPage campaignId={campaignId} />);
+        root.render(<CampaignChat campaignId={campaignId} />);
+    }
+
+    // Montar Chat DM
+    const chatAppElement = document.getElementById('chat-app');
+    if (chatAppElement) {
+        console.log('Chat DM: Montando chat de mensagens diretas');
+        const root = createRoot(chatAppElement);
+        root.render(<ChatDMPage />);
+    }
+
+    // Montar Teste de Pusher
+    const pusherTestElement = document.getElementById('pusher-test-app');
+    if (pusherTestElement) {
+        console.log('Pusher Test: Montando página de teste');
+        const root = createRoot(pusherTestElement);
+        root.render(<PusherTestPage />);
     }
 
     // Montar Mapa Mental da Campanha

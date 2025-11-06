@@ -104,7 +104,12 @@ const MessageList = ({ messages, onLoadMore, hasMore, loading }) => {
     const messageGroups = groupMessagesByDate(messages);
 
     return (
-        <div className="flex-1 overflow-y-auto" ref={messagesContainerRef} onScroll={handleScroll}>
+        <div 
+            className="flex-1 overflow-y-auto" 
+            ref={messagesContainerRef} 
+            onScroll={handleScroll}
+            style={{ height: '100%', maxHeight: '100%' }}
+        >
             <div className="px-6 py-4 space-y-4">
                 {/* Indicador de carregamento no topo */}
                 {loading && hasMore && (

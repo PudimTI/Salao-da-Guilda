@@ -5,6 +5,7 @@ import Recommendations from './Recommendations';
 import FeedPost from './FeedPost';
 import CreatePostModal from './CreatePostModal';
 import TagFilter from './TagFilter';
+import CollapsedChatButton from './CollapsedChatButton';
 import { apiGet, apiPost } from '../utils/api';
 
 const Feed = () => {
@@ -49,6 +50,20 @@ const Feed = () => {
     };
 
     useEffect(() => {
+        // Debug do localStorage ao montar o componente
+        console.log('🏠 [Feed] Componente montado');
+        console.log('📦 [Feed] Verificando localStorage...');
+        console.log('📦 [Feed] Todos os itens do localStorage:');
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            const value = localStorage.getItem(key);
+            console.log(`  - ${key}:`, value ? (value.length > 50 ? value.substring(0, 50) + '...' : value) : 'null');
+        }
+        
+        const token = localStorage.getItem('auth_token');
+        console.log('🎫 [Feed] Token auth_token:', token ? `SIM (${token.substring(0, 30)}...)` : 'NÃO');
+        console.log('🎫 [Feed] Token completo:', token);
+        
         fetchPosts();
     }, []);
 
@@ -141,6 +156,7 @@ const Feed = () => {
                     </div>
                 </main>
                 <Footer />
+                <CollapsedChatButton />
             </div>
         );
     }
@@ -165,6 +181,7 @@ const Feed = () => {
                     </div>
                 </main>
                 <Footer />
+                <CollapsedChatButton />
             </div>
         );
     }
@@ -239,6 +256,9 @@ const Feed = () => {
             </main>
 
             <Footer />
+            
+            {/* Botão de chat recolhido */}
+            <CollapsedChatButton />
             
             {/* Modal de criação de post */}
             <CreatePostModal

@@ -108,36 +108,59 @@ const FloatingChat = ({ isOpen, onToggle, className = '' }) => {
                 </div>
 
                 {/* Conteúdo do chat */}
-                <div className="flex-1 flex overflow-hidden">
+                <div className="flex-1 flex overflow-hidden min-h-0">
                     {currentConversation ? (
                         <>
                             {/* Área de mensagens */}
-                            <div className="flex-1 flex flex-col">
+                            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                                 {/* Header da conversa */}
-                                <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+                                <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex-shrink-0">
                                     <div className="flex items-center space-x-3">
-                                        <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                                            {currentConversation.participants
-                                                ?.find(p => p.user_id !== JSON.parse(localStorage.getItem('user') || '{}').id)
-                                                ?.user?.name?.charAt(0) || 'U'}
-                                        </div>
-                                        <div>
-                                            <h4 className="text-sm font-medium text-gray-900">
-                                                {currentConversation.participants
-                                                    ?.find(p => p.user_id !== JSON.parse(localStorage.getItem('user') || '{}').id)
-                                                    ?.user?.name || 'Usuário'}
-                                            </h4>
-                                            <p className="text-xs text-gray-500">
-                                                @{currentConversation.participants
-                                                    ?.find(p => p.user_id !== JSON.parse(localStorage.getItem('user') || '{}').id)
-                                                    ?.user?.handle || 'usuario'}
-                                            </p>
-                                        </div>
+                                        {(() => {
+                                            const currentUserId = JSON.parse(localStorage.getItem('user') || '{}').id;
+                                            
+                                            // Buscar conversa completa da lista para garantir que tem participantes carregados
+                                            const fullConversation = conversations.find(c => c.id === currentConversation.id) || currentConversation;
+                                            
+                                            // Os participantes já são os usuários (belongsToMany)
+                                            const otherParticipant = fullConversation.participants
+                                                ?.find(p => p.id !== currentUserId);
+                                            
+                                            return (
+                                                <>
+                                                    <div className="relative">
+                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold ${
+                                                            otherParticipant?.avatar_url ? 'bg-gray-200' : 'bg-purple-500'
+                                                        }`}>
+                                                            {otherParticipant?.avatar_url ? (
+                                                                <img
+                                                                    src={otherParticipant.avatar_url}
+                                                                    alt={otherParticipant?.display_name || otherParticipant?.name || 'Usuário'}
+                                                                    className="w-10 h-10 rounded-full object-cover"
+                                                                />
+                                                            ) : (
+                                                                (otherParticipant?.display_name || otherParticipant?.name || 'U')?.charAt(0).toUpperCase() || 'U'
+                                                            )}
+                                                        </div>
+                                                        {/* Indicador online */}
+                                                        <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-medium text-gray-900">
+                                                            {otherParticipant?.display_name || otherParticipant?.name || 'Usuário'}
+                                                        </h4>
+                                                        <p className="text-xs text-gray-500">
+                                                            @{otherParticipant?.handle || 'usuario'}
+                                                        </p>
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
 
                                 {/* Lista de mensagens */}
-                                <div className="flex-1 overflow-hidden">
+                                <div className="flex-1 overflow-hidden min-h-0">
                                     <MessageList
                                         messages={messages}
                                         onLoadMore={handleLoadMoreMessages}

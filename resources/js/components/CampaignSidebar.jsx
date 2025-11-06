@@ -118,19 +118,26 @@ const CampaignSidebar = ({ campaignId }) => {
                     <div>
                         <h2 className="text-sm font-semibold text-gray-700 mb-4">Jogadores</h2>
                         <div className="space-y-2">
-                            {campaign?.members?.map((member) => (
-                                <div key={member.id} className="flex items-center p-2 bg-gray-50 rounded-lg">
-                                    <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center mr-3">
-                                        <span className="text-xs font-medium text-gray-600">
-                                            {member.name.charAt(0).toUpperCase()}
-                                        </span>
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="text-sm font-medium text-gray-900">{member.name}</p>
-                                        <p className="text-xs text-gray-500 capitalize">{member.role}</p>
-                                    </div>
-                                </div>
-                            ))}
+                            {campaign?.members
+                                ?.filter(member => member && member.id)
+                                ?.map((member) => {
+                                    const memberName = (member.display_name || member.name || 'Usuário').trim();
+                                    if (!memberName) return null;
+                                    
+                                    return (
+                                        <div key={member.id} className="flex items-center p-2 bg-gray-50 rounded-lg">
+                                            <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center mr-3">
+                                                <span className="text-xs font-medium text-gray-600">
+                                                    {memberName.charAt(0).toUpperCase()}
+                                                </span>
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-sm font-medium text-gray-900">{memberName}</p>
+                                                <p className="text-xs text-gray-500 capitalize">{member.role || 'player'}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                         </div>
                     </div>
                 )}

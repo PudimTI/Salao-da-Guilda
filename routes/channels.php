@@ -16,3 +16,8 @@ Broadcast::channel('conversation.{conversationId}', function ($user, $conversati
         })
         ->exists();
 });
+
+// Canais de teste do Pusher
+Broadcast::channel('test-user-{userId}', function ($user, $userId) {
+    return (int) $user->id === (int) $userId;
+});

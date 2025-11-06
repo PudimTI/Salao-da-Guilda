@@ -96,8 +96,24 @@ class FriendshipController extends Controller
                 'created_at' => now()
             ]);
 
-            // Enviar notificação
-            $this->notificationService->sendFriendRequestNotification($friendRequest);
+            // Verificar se a solicitação foi criada corretamente
+            if (!$friendRequest || !$friendRequest->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erro ao criar solicitação de amizade'
+                ], 500);
+            }
+
+            // Recarregar a solicitação para garantir que está persistida
+            $friendRequest->refresh();
+
+            // Enviar notificação apenas se a solicitação foi criada com sucesso
+            try {
+                $this->notificationService->sendFriendRequestNotification($friendRequest);
+            } catch (\Exception $e) {
+                // Log do erro mas não falha a criação da solicitação
+                \Illuminate\Support\Facades\Log::error('Erro ao enviar notificação de solicitação de amizade: ' . $e->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
@@ -326,6 +342,7 @@ class FriendshipController extends Controller
 
         $requests = FriendRequest::where('to_user_id', $user->id)
             ->where('status', 'pending')
+            ->whereHas('fromUser') // Garantir que o fromUser existe
             ->with(['fromUser'])
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);

@@ -19,20 +19,39 @@ export const useFriendships = () => {
         
         try {
             const response = await friendshipService.getFriends(params);
-            setFriends(response.data || []);
-            setPagination(response.meta || pagination);
+            // A API retorna { success: true, data: { data: [...], ... } }
+            // Precisamos extrair o array de amigos do objeto de paginação
+            const friendsData = response.data?.data || response.data || [];
+            setFriends(Array.isArray(friendsData) ? friendsData : []);
+            
+            // Extrair metadados de paginação
+            if (response.data && !Array.isArray(response.data)) {
+                setPagination({
+                    current_page: response.data.current_page || 1,
+                    last_page: response.data.last_page || 1,
+                    per_page: response.data.per_page || 15,
+                    total: response.data.total || 0
+                });
+            } else {
+                setPagination(response.meta || pagination);
+            }
         } catch (err) {
             setError(err.message || 'Erro ao carregar amigos');
             console.error('Erro ao carregar amigos:', err);
+            setFriends([]); // Garantir que seja sempre um array
         } finally {
             setLoading(false);
         }
     }, []);
 
-    const removeFriend = useCallback(async (friendshipId) => {
+    const removeFriend = useCallback(async (friendId) => {
         try {
-            await friendshipService.removeFriend(friendshipId);
-            setFriends(prev => prev.filter(friend => friend.friendship_id !== friendshipId));
+            await friendshipService.removeFriend(friendId);
+            // Filtrar pelo friend_id (ID do amigo) ou friend.id
+            setFriends(prev => prev.filter(friend => {
+                const friendUserId = friend.friend?.id || friend.friend_id;
+                return friendUserId !== friendId;
+            }));
         } catch (err) {
             setError(err.message);
             throw err;
@@ -42,7 +61,11 @@ export const useFriendships = () => {
     const blockUser = useCallback(async (userId) => {
         try {
             await friendshipService.blockUser(userId);
-            setFriends(prev => prev.filter(friend => friend.user.id !== userId));
+            // Usar friend.friend.id (ID do amigo) para filtrar
+            setFriends(prev => prev.filter(friend => {
+                const friendId = friend.friend?.id || friend.friend_id;
+                return friendId !== userId;
+            }));
         } catch (err) {
             setError(err.message);
             throw err;
@@ -77,10 +100,14 @@ export const useFriendRequests = (type = 'received') => {
         
         try {
             const response = await friendshipService.getFriendRequests(type);
-            setRequests(response.data || []);
+            // A API retorna { success: true, data: { data: [...], ... } }
+            // Precisamos extrair o array de solicitações do objeto de paginação
+            const requestsData = response.data?.data || response.data || [];
+            setRequests(Array.isArray(requestsData) ? requestsData : []);
         } catch (err) {
             setError(err.message || 'Erro ao carregar solicitações');
             console.error('Erro ao carregar solicitações:', err);
+            setRequests([]); // Garantir que seja sempre um array
         } finally {
             setLoading(false);
         }
@@ -89,7 +116,8 @@ export const useFriendRequests = (type = 'received') => {
     const respondToRequest = useCallback(async (requestId, action) => {
         try {
             await friendshipService.respondToFriendRequest(requestId, action);
-            setRequests(prev => prev.filter(req => req.id !== requestId));
+            // Filtrar solicitação removida
+            setRequests(prev => (Array.isArray(prev) ? prev : []).filter(req => req && req.id !== requestId));
         } catch (err) {
             setError(err.message);
             throw err;
@@ -99,7 +127,8 @@ export const useFriendRequests = (type = 'received') => {
     const cancelRequest = useCallback(async (requestId) => {
         try {
             await friendshipService.cancelFriendRequest(requestId);
-            setRequests(prev => prev.filter(req => req.id !== requestId));
+            // Filtrar solicitação cancelada
+            setRequests(prev => (Array.isArray(prev) ? prev : []).filter(req => req && req.id !== requestId));
         } catch (err) {
             setError(err.message);
             throw err;
@@ -111,7 +140,7 @@ export const useFriendRequests = (type = 'received') => {
     }, [loadRequests]);
 
     return {
-        requests,
+        requests: Array.isArray(requests) ? requests : [],
         loading,
         error,
         respondToRequest,
@@ -201,11 +230,20 @@ export const useNotifications = () => {
         
         try {
             const response = await friendshipService.getNotifications(params);
-            setNotifications(response.data || []);
-            setUnreadCount(response.unread_count || 0);
+            // A API retorna { success: true, data: { data: [...], ... } }
+            // Precisamos extrair o array de notificações do objeto de paginação
+            const notificationsData = response.data?.data || response.data || [];
+            setNotifications(Array.isArray(notificationsData) ? notificationsData : []);
+            
+            // Extrair unread_count da resposta se disponível
+            const count = response.unread_count || response.data?.unread_count || 0;
+            if (count > 0) {
+                setUnreadCount(count);
+            }
         } catch (err) {
             setError(err.message || 'Erro ao carregar notificações');
             console.error('Erro ao carregar notificações:', err);
+            setNotifications([]); // Garantir que seja sempre um array
         } finally {
             setLoading(false);
         }
@@ -214,34 +252,61 @@ export const useNotifications = () => {
     const loadUnreadCount = useCallback(async () => {
         try {
             const response = await friendshipService.getUnreadCount();
-            setUnreadCount(response.count || 0);
+            // A API retorna { success: true, data: { unread_count: ... } }
+            const count = response.data?.unread_count || response.data?.data?.unread_count || response.count || 0;
+            setUnreadCount(count);
         } catch (err) {
             console.error('Erro ao carregar contagem:', err);
+            setUnreadCount(0); // Valor padrão em caso de erro
         }
     }, []);
 
-    const markAsRead = useCallback(async (notificationId) => {
+    const markAsRead = useCallback(async (notificationIds) => {
         try {
-            await friendshipService.markNotificationAsRead(notificationId);
-            setNotifications(prev => 
-                prev.map(notif => 
-                    notif.id === notificationId 
-                        ? { ...notif, read_at: new Date().toISOString() }
-                        : notif
-                )
-            );
-            setUnreadCount(prev => Math.max(0, prev - 1));
+            // Aceita ID único ou array
+            const ids = Array.isArray(notificationIds) ? notificationIds : (notificationIds ? [notificationIds] : []);
+            
+            if (ids.length === 0) {
+                // Marcar todas como lidas
+                await friendshipService.markAllNotificationsAsRead();
+                setNotifications(prev => 
+                    (Array.isArray(prev) ? prev : []).map(notif => ({ 
+                        ...notif, 
+                        read: true,
+                        read_at: new Date().toISOString() 
+                    }))
+                );
+                setUnreadCount(0);
+            } else {
+                // Marcar específicas como lidas
+                await friendshipService.markNotificationAsRead(ids);
+                setNotifications(prev => 
+                    (Array.isArray(prev) ? prev : []).map(notif => 
+                        ids.includes(notif.id) 
+                            ? { ...notif, read: true, read_at: new Date().toISOString() }
+                            : notif
+                    )
+                );
+                setUnreadCount(prev => Math.max(0, prev - ids.length));
+            }
+            
+            // Recarregar contagem para garantir sincronização
+            await loadUnreadCount();
         } catch (err) {
             setError(err.message);
             throw err;
         }
-    }, []);
+    }, [loadUnreadCount]);
 
     const markAllAsRead = useCallback(async () => {
         try {
             await friendshipService.markAllNotificationsAsRead();
             setNotifications(prev => 
-                prev.map(notif => ({ ...notif, read_at: new Date().toISOString() }))
+                (Array.isArray(prev) ? prev : []).map(notif => ({ 
+                    ...notif, 
+                    read: true,
+                    read_at: new Date().toISOString() 
+                }))
             );
             setUnreadCount(0);
         } catch (err) {
@@ -262,8 +327,8 @@ export const useNotifications = () => {
     }, [loadUnreadCount]);
 
     return {
-        notifications,
-        unreadCount,
+        notifications: Array.isArray(notifications) ? notifications : [],
+        unreadCount: unreadCount || 0,
         loading,
         error,
         markAsRead,

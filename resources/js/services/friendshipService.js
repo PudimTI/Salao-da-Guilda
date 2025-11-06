@@ -88,10 +88,11 @@ class FriendshipService {
         }
     }
 
-    async removeFriend(friendshipId) {
+    async removeFriend(friendId) {
         try {
+            // A API espera friend_id (ID do amigo), não friendship_id
             const response = await axios.post(`${this.baseURL}/friendships/remove`, {
-                friendship_id: friendshipId
+                friend_id: friendId
             });
             return response.data;
         } catch (error) {
@@ -126,7 +127,9 @@ class FriendshipService {
             const response = await axios.get(`${this.baseURL}/friendships/relationship-status`, {
                 params: { user_id: userId }
             });
-            return response.data;
+            // A API retorna { success, data, message }
+            const result = response.data.success ? response.data.data : response.data;
+            return result;
         } catch (error) {
             throw this.handleError(error);
         }
@@ -165,10 +168,12 @@ class FriendshipService {
         }
     }
 
-    async markNotificationAsRead(notificationId) {
+    async markNotificationAsRead(notificationIds) {
         try {
+            // A API espera notification_ids como array
+            const ids = Array.isArray(notificationIds) ? notificationIds : (notificationIds ? [notificationIds] : []);
             const response = await axios.post(`${this.baseURL}/notifications/mark-read`, {
-                notification_id: notificationId
+                notification_ids: ids.length > 0 ? ids : undefined
             });
             return response.data;
         } catch (error) {

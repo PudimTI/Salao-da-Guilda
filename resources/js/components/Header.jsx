@@ -13,9 +13,16 @@ const Header = ({ user: propUser }) => {
 
     // Carregar dados do usuário se não foram passados como props
     useEffect(() => {
-        if (!user) {
-            loadUserData();
-        }
+        // Aguardar um pouco para garantir que o localStorage foi carregado
+        const checkAndLoad = async () => {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            if (!user) {
+                loadUserData();
+            }
+        };
+        
+        checkAndLoad();
     }, []);
 
     // Fechar os dropdowns quando clicar fora deles
@@ -41,41 +48,112 @@ const Header = ({ user: propUser }) => {
     const loadUserData = async () => {
         try {
             setLoading(true);
-            const response = await fetch('/api/profile', {
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            
+            // Verificar token primeiro
+            const token = localStorage.getItem('auth_token');
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
+            
+            console.log('👤 [Header] Carregando dados do usuário...');
+            console.log('🎫 [Header] Token encontrado:', token ? 'SIM' : 'NÃO');
+            console.log('🔍 [Header] Token preview:', token ? `${token.substring(0, 30)}...` : 'N/A');
+            
+            // Se não há token, verificar se estamos em uma página pública
+            if (!token) {
+                const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password'];
+                const currentPath = window.location.pathname;
+                
+                // Se não estiver em página pública, redirecionar
+                if (!publicPaths.some(path => currentPath.startsWith(path))) {
+                    console.warn('⚠️ [Header] Sem token em página protegida. Redirecionando para /login');
+                    try {
+                        const headers = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+                        if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
+                        await fetch('/logout', { method: 'POST', headers, credentials: 'include' });
+                    } catch (e) {
+                        console.warn('⚠️ [Header] Falha ao chamar /logout:', e);
+                    }
+                    localStorage.removeItem('auth_token');
+                    localStorage.removeItem('user');
+                    window.location.href = '/login';
+                    return;
+                } else {
+                    console.log('ℹ️ [Header] Sem token mas em página pública. Continuando sem autenticação.');
+                    setLoading(false);
+                    return;
                 }
+            }
+            
+            const headers = {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            };
+            
+            if (csrfToken) {
+                headers['X-CSRF-TOKEN'] = csrfToken;
+            }
+            
+            console.log('📤 [Header] Fazendo requisição para /api/profile...');
+            const response = await fetch('/api/profile', {
+                headers,
+                credentials: 'include',
             });
+            
+            console.log('📥 [Header] Resposta:', response.status, response.statusText);
             
             if (response.ok) {
                 const data = await response.json();
+                console.log('✅ [Header] Dados do usuário carregados:', data.user);
                 setUser(data.user);
+                
+                // Salvar dados atualizados no localStorage
+                if (data.user) {
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                }
+            } else if (response.status === 401) {
+                console.error('❌ [Header] Erro 401 - Token inválido ou expirado. Efetuando logout e redirecionando');
+                try {
+                    const headers = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+                    if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
+                    await fetch('/logout', { method: 'POST', headers, credentials: 'include' });
+                } catch (e) {
+                    console.warn('⚠️ [Header] Falha ao chamar /logout após 401:', e);
+                }
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('user');
+                window.location.href = '/login';
+            } else {
+                console.error('❌ [Header] Erro ao carregar perfil:', response.status);
             }
         } catch (error) {
-            console.error('Erro ao carregar dados do usuário:', error);
+            console.error('❌ [Header] Erro ao carregar dados do usuário:', error);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleLogout = () => {
-        // Implementar logout aqui
-        // Por exemplo, fazer uma requisição para /logout ou limpar localStorage
-        fetch('/logout', {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                'Content-Type': 'application/json',
-            },
-        })
-        .then(() => {
+    const handleLogout = async () => {
+        try {
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
+            const token = localStorage.getItem('auth_token');
+
+            const headers = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+            if (csrfToken) headers['X-CSRF-TOKEN'] = csrfToken;
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
+            await fetch('/logout', {
+                method: 'POST',
+                headers,
+                credentials: 'include',
+            });
+        } catch (error) {
+            console.error('Erro ao fazer logout:', error);
+        } finally {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user');
             window.location.href = '/login';
-        })
-        .catch(() => {
-            // Fallback: redirecionar mesmo se a requisição falhar
-            window.location.href = '/login';
-        });
+        }
     };
 
     return (
@@ -237,7 +315,7 @@ const Header = ({ user: propUser }) => {
                                 
                                 <button 
                                     onClick={handleLogout}
-                                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors duration-200"
+                                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors duration-200 cursor-pointer"
                                 >
                                     <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

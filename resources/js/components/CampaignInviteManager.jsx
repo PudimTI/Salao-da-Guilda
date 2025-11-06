@@ -1,28 +1,39 @@
-import React, { useState, useEffect } from 'react';
-import { apiGet, apiPost } from '../utils/api';
+import React, { useState, useEffect, useRef } from 'react';
+import { apiGet, apiPost, apiDelete } from '../utils/api';
 
 const CampaignInviteManager = ({ campaignId }) => {
     const [invites, setInvites] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('sent'); // 'sent' ou 'requests'
+    const isLoadingRef = useRef(false); // Ref para evitar múltiplas chamadas
 
-    useEffect(() => {
-        loadInvites();
-    }, [campaignId]);
-
-    const loadInvites = async () => {
+    const loadInvites = React.useCallback(async () => {
+        if (!campaignId || isLoadingRef.current) return; // Evitar chamadas simultâneas
+        
         try {
+            isLoadingRef.current = true;
             setLoading(true);
             const response = await apiGet(`/campaigns/${campaignId}/invites`);
-            setInvites(response.data || []);
+            // Ajustar estrutura da resposta
+            const invitesData = response.data?.data || response.data || [];
+            setInvites(Array.isArray(invitesData) ? invitesData : []);
         } catch (error) {
             console.error('Erro ao carregar convites:', error);
             setError('Erro ao carregar convites');
+            setInvites([]);
         } finally {
             setLoading(false);
+            isLoadingRef.current = false;
         }
-    };
+    }, [campaignId]);
+
+    useEffect(() => {
+        if (campaignId) {
+            loadInvites();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [campaignId]); // Removido loadInvites das dependências para evitar loop
 
     const handleApprove = async (inviteId) => {
         try {
@@ -48,12 +59,10 @@ const CampaignInviteManager = ({ campaignId }) => {
 
     const handleCancel = async (inviteId) => {
         try {
-            await apiPost(`/invites/${inviteId}/cancel`);
+            await apiDelete(`/api/invites/${inviteId}/cancel`);
             loadInvites(); // Recarregar lista
-            // TODO: Mostrar notificação de sucesso
         } catch (error) {
             console.error('Erro ao cancelar convite:', error);
-            // TODO: Mostrar notificação de erro
         }
     };
 
@@ -77,8 +86,15 @@ const CampaignInviteManager = ({ campaignId }) => {
         }
     };
 
-    const sentInvites = invites.filter(invite => !invite.is_self_invite);
-    const requests = invites.filter(invite => invite.is_self_invite);
+    // Separar convites enviados de solicitações recebidas
+    // Solicitações: quando invitee_id === campaign_owner_id (alguém está pedindo entrada)
+    // Convites enviados: quando invitee_id !== campaign_owner_id (mestre convidou alguém)
+    const sentInvites = invites.filter(invite => 
+        invite && invite.id && !invite.is_request
+    );
+    const requests = invites.filter(invite => 
+        invite && invite.id && invite.is_request
+    );
 
     if (loading) {
         return (
@@ -140,19 +156,27 @@ const CampaignInviteManager = ({ campaignId }) => {
                                 </p>
                             </div>
                         ) : (
-                            sentInvites.map((invite) => (
+                            sentInvites
+                                .filter(invite => invite && invite.id && invite.invitee) // Filtrar antes do map
+                                .map((invite) => {
+                                const inviteeName = (invite.invitee?.name || invite.invitee?.display_name || 'Usuário').trim();
+                                const inviteeEmail = invite.invitee?.email || '';
+                                
+                                if (!inviteeName) return null; // Se não tiver nome, não renderizar
+                                
+                                return (
                                 <div key={invite.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                                     <div className="flex items-center space-x-3">
                                         <div className="flex-shrink-0">
                                             <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
                                                 <span className="text-gray-600 font-medium">
-                                                    {invite.invitee.name.charAt(0).toUpperCase()}
+                                                    {inviteeName.charAt(0).toUpperCase()}
                                                 </span>
                                             </div>
                                         </div>
                                         <div>
-                                            <h4 className="text-sm font-medium text-gray-900">{invite.invitee.name}</h4>
-                                            <p className="text-sm text-gray-500">{invite.invitee.email}</p>
+                                            <h4 className="text-sm font-medium text-gray-900">{inviteeName}</h4>
+                                            {inviteeEmail && <p className="text-sm text-gray-500">{inviteeEmail}</p>}
                                             {invite.message && (
                                                 <p className="text-xs text-gray-600 mt-1">{invite.message}</p>
                                             )}
@@ -174,7 +198,8 @@ const CampaignInviteManager = ({ campaignId }) => {
                                         )}
                                     </div>
                                 </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 ) : (
@@ -190,19 +215,26 @@ const CampaignInviteManager = ({ campaignId }) => {
                                 </p>
                             </div>
                         ) : (
-                            requests.map((invite) => (
+                            requests
+                                .filter(invite => invite && invite.id && invite.inviter) // Filtrar antes do map
+                                .map((invite) => {
+                                const inviterName = (invite.inviter?.name || invite.inviter?.display_name || 'Usuário').trim();
+                                
+                                if (!inviterName) return null; // Se não tiver nome, não renderizar
+                                
+                                return (
                                 <div key={invite.id} className="p-4 border border-gray-200 rounded-lg">
                                     <div className="flex items-start justify-between">
                                         <div className="flex items-center space-x-3">
                                             <div className="flex-shrink-0">
                                                 <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                                                     <span className="text-blue-600 font-medium">
-                                                        {invite.inviter.name.charAt(0).toUpperCase()}
+                                                        {inviterName.charAt(0).toUpperCase()}
                                                     </span>
                                                 </div>
                                             </div>
                                             <div>
-                                                <h4 className="text-sm font-medium text-gray-900">{invite.inviter.name}</h4>
+                                                <h4 className="text-sm font-medium text-gray-900">{inviterName}</h4>
                                                 <p className="text-sm text-gray-500">Solicitação de entrada</p>
                                                 {invite.message && (
                                                     <p className="text-sm text-gray-700 mt-2">{invite.message}</p>
@@ -234,7 +266,8 @@ const CampaignInviteManager = ({ campaignId }) => {
                                         </div>
                                     </div>
                                 </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 )}

@@ -79,6 +79,20 @@ class MessageController extends Controller
             $mediaUrl = null;
             $replyTo = $request->get('reply_to');
 
+            // Validar se reply_to pertence à mesma conversa
+            if ($replyTo) {
+                $repliedMessage = Message::where('id', $replyTo)
+                    ->where('conversation_id', $conversation->id)
+                    ->first();
+                
+                if (!$repliedMessage) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'A mensagem respondida não pertence a esta conversa'
+                    ], 422);
+                }
+            }
+
             // Processar mídia se enviada
             if ($request->hasFile('media')) {
                 $file = $request->file('media');
@@ -213,10 +227,14 @@ class MessageController extends Controller
 
         try {
             $this->chatService->markMessagesAsRead($conversation->id, $user->id);
+            
+            // Retornar contagem atualizada de não lidas para esta conversa
+            $unreadCount = $this->chatService->getUnreadMessagesCountByConversation($conversation->id, $user->id);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Mensagens marcadas como lidas'
+                'message' => 'Mensagens marcadas como lidas',
+                'unread_count' => $unreadCount
             ]);
 
         } catch (\Exception $e) {

@@ -1,5 +1,5 @@
 import React from 'react';
-import ChatInterface from './components/ChatInterface';
+import ChatInterface from '../components/ChatInterface';
 
 // Exemplo de uso do sistema de chat DM
 const ChatDMPage = () => {

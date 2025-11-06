@@ -50,7 +50,8 @@ const FriendRequestsPage = () => {
     };
 
     const currentRequests = activeTab === 'received' ? receivedRequests : sentRequests;
-    const requests = currentRequests.requests;
+    // Garantir que requests seja sempre um array
+    const requests = Array.isArray(currentRequests.requests) ? currentRequests.requests : [];
 
     return (
         <AppLayout currentPage="friends">
@@ -170,17 +171,43 @@ const FriendRequestsPage = () => {
                                     }
                                 </h3>
                                 <p className="text-gray-600 mb-4">
-                                    {activeTab === 'received'
-                                        ? 'Quando alguém enviar uma solicitação de amizade, ela aparecerá aqui'
-                                        : 'As solicitações que você enviar aparecerão aqui'
+                                    {currentRequests.loading
+                                        ? 'Carregando solicitações...'
+                                        : activeTab === 'received'
+                                            ? currentRequests.error
+                                                ? `Erro: ${currentRequests.error}`
+                                                : 'Quando alguém enviar uma solicitação de amizade, ela aparecerá aqui'
+                                            : 'As solicitações que você enviar aparecerão aqui'
                                     }
                                 </p>
-                                <button
-                                    onClick={() => window.location.href = '/amigos'}
-                                    className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
-                                >
-                                    Ver Meus Amigos
-                                </button>
+                                {!currentRequests.loading && (
+                                    <div className="flex gap-2 justify-center">
+                                        <button
+                                            onClick={() => window.location.href = '/amigos'}
+                                            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+                                        >
+                                            Ver Meus Amigos
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (activeTab === 'received') {
+                                                    receivedRequests.refresh();
+                                                } else {
+                                                    sentRequests.refresh();
+                                                }
+                                            }}
+                                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                                        >
+                                            🔄 Atualizar
+                                        </button>
+                                    </div>
+                                )}
+                                {/* Debug info - remover em produção */}
+                                {process.env.NODE_ENV === 'development' && (
+                                    <div className="mt-4 text-xs text-gray-400">
+                                        Debug: requests={requests.length}, loading={currentRequests.loading ? 'true' : 'false'}, error={currentRequests.error || 'none'}, tab={activeTab}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

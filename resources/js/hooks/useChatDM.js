@@ -48,7 +48,11 @@ export const useChatDM = () => {
             });
             
             if (response.data.success) {
-                setConversations(response.data.data.data);
+                // Processar conversas e extrair mensagens pré-carregadas
+                const conversationsData = response.data.data.data || [];
+                
+                // As mensagens já vêm pré-carregadas junto com as conversas
+                setConversations(conversationsData);
             }
         } catch (err) {
             setError('Erro ao carregar conversas');
@@ -72,7 +76,13 @@ export const useChatDM = () => {
                 const newMessages = response.data.data.data.reverse(); // Inverter ordem para exibição
                 
                 if (before) {
-                    setMessages(prev => [...newMessages, ...prev]);
+                    // Carregar mensagens mais antigas - adicionar no início
+                    setMessages(prev => {
+                        // Evitar duplicatas
+                        const existingIds = new Set(prev.map(m => m.id));
+                        const uniqueNewMessages = newMessages.filter(m => !existingIds.has(m.id));
+                        return [...uniqueNewMessages, ...prev];
+                    });
                 } else {
                     setMessages(newMessages);
                 }
@@ -271,13 +281,38 @@ export const useChatDM = () => {
         loadConversations();
     }, [loadConversations]);
 
-    // Marcar como lida quando mudar de conversa
+    // Marcar como lida quando mudar de conversa e carregar mensagens pré-carregadas
     useEffect(() => {
         if (currentConversation) {
             markAsRead(currentConversation.id);
-            loadMessages(currentConversation.id);
+            
+            // Verificar se a conversa já tem mensagens pré-carregadas
+            const conversationFromList = conversations.find(c => c.id === currentConversation.id);
+            
+            if (conversationFromList?.messages && conversationFromList.messages.length > 0) {
+                // Usar mensagens pré-carregadas (limitadas a 20)
+                // As mensagens vêm ordenadas por latest() primeiro, então precisamos inverter
+                const preloadedMessages = [...conversationFromList.messages]
+                    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); // Ordenar por data (mais antigas primeiro)
+                
+                setMessages(preloadedMessages);
+                
+                // Se tiver exatamente 20 mensagens, pode haver mais - verificar se precisa carregar mais
+                if (conversationFromList.messages.length === 20 && preloadedMessages.length > 0) {
+                    // Carregar mensagens mais antigas se necessário (a partir da mensagem mais antiga)
+                    const oldestMessageId = preloadedMessages[0]?.id;
+                    if (oldestMessageId) {
+                        loadMessages(currentConversation.id, oldestMessageId);
+                    }
+                }
+            } else {
+                // Não tem mensagens pré-carregadas, carregar do servidor
+                loadMessages(currentConversation.id);
+            }
+        } else {
+            setMessages([]);
         }
-    }, [currentConversation, markAsRead, loadMessages]);
+    }, [currentConversation, conversations, markAsRead, loadMessages]);
 
     // Cleanup ao desmontar
     useEffect(() => {

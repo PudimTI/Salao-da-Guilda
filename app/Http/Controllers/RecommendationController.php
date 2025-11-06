@@ -26,6 +26,14 @@ class RecommendationController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        // Verificar se o usuário está autenticado
+        if (!Auth::check()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Usuário não autenticado'
+            ], 401);
+        }
+        
         $user = Auth::user();
         
         $validator = Validator::make($request->all(), [
@@ -90,6 +98,14 @@ class RecommendationController extends Controller
      */
     public function generate(Request $request): JsonResponse
     {
+        // Verificar se o usuário está autenticado
+        if (!Auth::check()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Usuário não autenticado'
+            ], 401);
+        }
+        
         $user = Auth::user();
         
         $validator = Validator::make($request->all(), [

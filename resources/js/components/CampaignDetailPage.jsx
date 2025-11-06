@@ -1,7 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from './Header';
 import Footer from './Footer';
+import CampaignInviteModal from './CampaignInviteModal';
+import CampaignInviteManager from './CampaignInviteManager';
+import { Toaster } from 'react-hot-toast';
 import { apiGet, apiPost, apiDelete } from '../utils/api';
+import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const CampaignDetailPage = ({ campaignId }) => {
     const [campaign, setCampaign] = useState(null);
@@ -9,45 +14,50 @@ const CampaignDetailPage = ({ campaignId }) => {
     const [error, setError] = useState(null);
     const [isMember, setIsMember] = useState(false);
     const [isOwner, setIsOwner] = useState(false);
-    const [inviteEmail, setInviteEmail] = useState('');
-    const [inviteMessage, setInviteMessage] = useState('');
+    const [showInviteModal, setShowInviteModal] = useState(false);
+    const isLoadingRef = useRef(false); // Ref para evitar múltiplas chamadas simultâneas
+
+    const loadCampaign = useCallback(async () => {
+        if (!campaignId || isLoadingRef.current) return; // Evitar chamadas simultâneas
+        
+        try {
+            isLoadingRef.current = true;
+            setLoading(true);
+            setError(null);
+            const response = await apiGet(`/api/campaigns/${campaignId}`);
+            
+            // Verificar estrutura da resposta da API
+            // A API retorna { success: true, data: {...} }
+            const campaignData = response.data?.data || response.data;
+            
+            if (!campaignData) {
+                setError('Campanha não encontrada');
+                return;
+            }
+            
+            setCampaign(campaignData);
+            setIsMember(campaignData.is_member || false);
+            setIsOwner(campaignData.is_owner || false);
+        } catch (error) {
+            console.error('Erro ao carregar campanha:', error);
+            setError(error.response?.data?.message || 'Erro ao carregar campanha');
+        } finally {
+            setLoading(false);
+            isLoadingRef.current = false;
+        }
+    }, [campaignId]);
 
     useEffect(() => {
         if (campaignId) {
             loadCampaign();
         }
-    }, [campaignId]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [campaignId]); // loadCampaign já está memoizado com useCallback e depende de campaignId
 
-    const loadCampaign = async () => {
-        try {
-            setLoading(true);
-            const response = await apiGet(`/api/campaigns/${campaignId}`);
-            setCampaign(response.data);
-            setIsMember(response.data.is_member || false);
-            setIsOwner(response.data.is_owner || false);
-        } catch (error) {
-            console.error('Erro ao carregar campanha:', error);
-            setError('Erro ao carregar campanha');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleInviteMember = async (e) => {
-        e.preventDefault();
-        try {
-            await apiPost(`/api/campaigns/${campaignId}/invite`, {
-                email: inviteEmail,
-                message: inviteMessage
-            });
-            setInviteEmail('');
-            setInviteMessage('');
-            alert('Convite enviado com sucesso!');
-        } catch (error) {
-            console.error('Erro ao enviar convite:', error);
-            alert('Erro ao enviar convite');
-        }
-    };
+    const handleInviteSuccess = useCallback(() => {
+        setShowInviteModal(false);
+        loadCampaign(); // Recarregar dados para atualizar lista de membros
+    }, [loadCampaign]);
 
     const handleLeaveCampaign = async () => {
         if (!confirm('Tem certeza que deseja sair desta campanha?')) {
@@ -65,9 +75,26 @@ const CampaignDetailPage = ({ campaignId }) => {
     const updateMemberRole = async (userId, role) => {
         try {
             await apiPost(`/api/campaigns/${campaignId}/members/${userId}/role`, { role });
+            toast.success('Role do membro atualizado com sucesso!');
             loadCampaign(); // Recarregar dados
         } catch (error) {
             console.error('Erro ao atualizar role do membro:', error);
+            toast.error(error.response?.data?.message || 'Erro ao atualizar role do membro');
+        }
+    };
+
+    const handleRemoveMember = async (userId, memberName) => {
+        if (!confirm(`Tem certeza que deseja expulsar ${memberName} da campanha?`)) {
+            return;
+        }
+
+        try {
+            await axios.delete(`/api/campaigns/${campaignId}/members/${userId}`);
+            toast.success('Membro expulso com sucesso!');
+            loadCampaign(); // Recarregar dados
+        } catch (error) {
+            console.error('Erro ao expulsar membro:', error);
+            toast.error(error.response?.data?.message || 'Erro ao expulsar membro');
         }
     };
 
@@ -182,15 +209,17 @@ const CampaignDetailPage = ({ campaignId }) => {
                         )}
 
                         {/* Tags */}
-                        {campaign.tags && campaign.tags.length > 0 && (
+                        {campaign.tags && Array.isArray(campaign.tags) && campaign.tags.length > 0 && (
                             <div className="mb-6">
                                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Tags</h3>
                                 <div className="flex flex-wrap gap-2">
-                                    {campaign.tags.map(tag => (
-                                        <span key={tag.id} className="px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded">
-                                            {tag.name}
-                                        </span>
-                                    ))}
+                                    {campaign.tags
+                                        .filter(tag => tag && tag.id) // Filtrar tags inválidas antes do map
+                                        .map(tag => (
+                                            <span key={tag.id} className="px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded">
+                                                {tag.name || 'Sem nome'}
+                                            </span>
+                                        ))}
                                 </div>
                             </div>
                         )}
@@ -238,42 +267,76 @@ const CampaignDetailPage = ({ campaignId }) => {
                                     Membros ({campaign.members?.length || 0})
                                 </h2>
                                 
-                                {campaign.members && campaign.members.length > 0 ? (
+                                {campaign.members && Array.isArray(campaign.members) && campaign.members.length > 0 ? (
                                     <div className="space-y-3">
-                                        {campaign.members.map(member => (
-                                            <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                <div className="flex items-center">
-                                                    <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white font-medium">
-                                                        {member.name?.charAt(0) || '?'}
+                                        {campaign.members
+                                            .filter(member => member && member.id) // Filtrar membros inválidos antes do map
+                                            .map(member => {
+                                            const isMemberOwner = campaign.owner_id === member.id;
+                                            const canRemove = isOwner && !isMemberOwner && member.id !== campaign.owner_id;
+                                            // Priorizar display_name sobre name
+                                            const memberName = (member.display_name || member.name || 'Usuário').trim();
+                                            
+                                            if (!memberName) return null; // Se não tiver nome, não renderizar
+                                            
+                                            return (
+                                                <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                                                    <div className="flex items-center flex-1">
+                                                        <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-medium flex-shrink-0">
+                                                            {memberName.charAt(0).toUpperCase()}
+                                                        </div>
+                                                        <div className="ml-3 flex-1">
+                                                            <div className="flex items-center space-x-2">
+                                                                <p className="font-medium text-gray-900">{memberName}</p>
+                                                                {member.name && member.name !== member.display_name && (
+                                                                    <span className="text-xs text-gray-500">({member.name})</span>
+                                                                )}
+                                                                {isMemberOwner && (
+                                                                    <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20" title="Mestre">
+                                                                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                                                    </svg>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center space-x-2 mt-1">
+                                                                <p className="text-sm text-gray-500 capitalize">{member.role || 'player'}</p>
+                                                                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                                                    member.status === 'active' ? 'bg-green-100 text-green-800' :
+                                                                    member.status === 'invited' ? 'bg-yellow-100 text-yellow-800' :
+                                                                    'bg-gray-100 text-gray-800'
+                                                                }`}>
+                                                                    {member.status === 'active' ? 'Ativo' :
+                                                                     member.status === 'invited' ? 'Convidado' :
+                                                                     member.status || 'Ativo'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <div className="ml-3">
-                                                        <p className="font-medium text-gray-900">{member.name}</p>
-                                                        <p className="text-sm text-gray-500">{member.role}</p>
+                                                    <div className="flex items-center space-x-2 ml-4">
+                                                        {isOwner && !isMemberOwner && (
+                                                            <select 
+                                                                onChange={(e) => updateMemberRole(member.id, e.target.value)}
+                                                                className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                                value={member.role || 'player'}
+                                                            >
+                                                                <option value="player">Player</option>
+                                                                <option value="co_master">Co-Master</option>
+                                                            </select>
+                                                        )}
+                                                        {canRemove && (
+                                                            <button
+                                                                onClick={() => handleRemoveMember(member.id, memberName)}
+                                                                className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                                                                title="Expulsar membro"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center space-x-2">
-                                                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                                        member.status === 'active' ? 'bg-green-100 text-green-800' :
-                                                        member.status === 'invited' ? 'bg-yellow-100 text-yellow-800' :
-                                                        'bg-gray-100 text-gray-800'
-                                                    }`}>
-                                                        {member.status === 'active' ? 'Ativo' :
-                                                         member.status === 'invited' ? 'Convidado' :
-                                                         member.status}
-                                                    </span>
-                                                    {isOwner && (
-                                                        <select 
-                                                            onChange={(e) => updateMemberRole(member.id, e.target.value)}
-                                                            className="text-xs border border-gray-300 rounded px-2 py-1"
-                                                            value={member.role}
-                                                        >
-                                                            <option value="player">Player</option>
-                                                            <option value="co_master">Co-Master</option>
-                                                        </select>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 ) : (
                                     <p className="text-gray-500 text-center py-4">Nenhum membro ainda.</p>
@@ -281,25 +344,31 @@ const CampaignDetailPage = ({ campaignId }) => {
                             </div>
 
                             {/* Files */}
-                            {campaign.files && campaign.files.length > 0 && (
+                            {campaign.files && Array.isArray(campaign.files) && campaign.files.length > 0 && (
                                 <div className="bg-white rounded-lg shadow-md p-6">
                                     <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                                        Arquivos ({campaign.files.length})
+                                        Arquivos ({campaign.files.filter(f => f && f.id).length})
                                     </h2>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {campaign.files.map(file => (
-                                            <div key={file.id} className="p-4 border border-gray-200 rounded-lg">
-                                                <div className="flex items-center">
-                                                    <svg className="w-8 h-8 text-gray-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd"/>
-                                                    </svg>
-                                                    <div>
-                                                        <p className="font-medium text-gray-900">{file.name}</p>
-                                                        <p className="text-sm text-gray-500">Enviado por {file.uploader?.name}</p>
+                                        {campaign.files
+                                            .filter(file => file && file.id) // Filtrar arquivos inválidos
+                                            .map(file => {
+                                                const fileName = file.name || 'Arquivo sem nome';
+                                                const uploaderName = file.uploader?.name || file.uploader?.display_name || 'Desconhecido';
+                                                return (
+                                                    <div key={file.id} className="p-4 border border-gray-200 rounded-lg">
+                                                        <div className="flex items-center">
+                                                            <svg className="w-8 h-8 text-gray-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd"/>
+                                                            </svg>
+                                                            <div>
+                                                                <p className="font-medium text-gray-900">{fileName}</p>
+                                                                <p className="text-sm text-gray-500">Enviado por {uploaderName}</p>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </div>
-                                        ))}
+                                                );
+                                            })}
                                     </div>
                                 </div>
                             )}
@@ -335,36 +404,19 @@ const CampaignDetailPage = ({ campaignId }) => {
                             {/* Invite Member */}
                             {isOwner && (
                                 <div className="bg-white rounded-lg shadow-md p-6">
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Convidar Membro</h3>
-                                    <form onSubmit={handleInviteMember}>
-                                        <div className="space-y-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                                <input 
-                                                    type="email" 
-                                                    value={inviteEmail}
-                                                    onChange={(e) => setInviteEmail(e.target.value)}
-                                                    required
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Mensagem (opcional)</label>
-                                                <textarea 
-                                                    value={inviteMessage}
-                                                    onChange={(e) => setInviteMessage(e.target.value)}
-                                                    rows="3"
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                                />
-                                            </div>
-                                            <button 
-                                                type="submit"
-                                                className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium transition-colors"
-                                            >
-                                                Enviar Convite
-                                            </button>
-                                        </div>
-                                    </form>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-lg font-semibold text-gray-900">Convidar Membro</h3>
+                                        <button
+                                            onClick={() => setShowInviteModal(true)}
+                                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium transition-colors flex items-center space-x-2"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                            </svg>
+                                            <span>Novo Convite</span>
+                                        </button>
+                                    </div>
+                                    <CampaignInviteManager campaignId={campaignId} />
                                 </div>
                             )}
                         </div>
@@ -373,6 +425,18 @@ const CampaignDetailPage = ({ campaignId }) => {
             </main>
 
             <Footer />
+
+            {/* Modal de Convite */}
+            <CampaignInviteModal
+                isOpen={showInviteModal}
+                onClose={() => setShowInviteModal(false)}
+                campaignId={campaignId}
+                campaignName={campaign?.name}
+                onInviteSuccess={handleInviteSuccess}
+            />
+
+            {/* Toaster para notificações */}
+            <Toaster position="top-right" />
         </div>
     );
 };

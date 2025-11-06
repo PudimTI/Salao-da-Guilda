@@ -39,12 +39,33 @@ export const useChat = (conversationId = null) => {
             const params = new URLSearchParams();
             if (options.before) params.append('before', options.before);
             if (options.after) params.append('after', options.after);
-            if (options.per_page) params.append('per_page', options.per_page);
+            if (options.per_page) params.append('per_page', options.per_page || 50);
             
             const response = await axios.get(`/api/chat/conversations/${convId}/messages?${params}`);
-            setMessages(response.data.data);
+            
+            // A resposta pode ser paginada (LengthAwarePaginator) ou um array direto
+            let messagesArray = [];
+            if (response.data.success && response.data.data) {
+                const messagesData = response.data.data;
+                
+                // Se for paginado (LengthAwarePaginator), pegar a propriedade 'data'
+                if (messagesData.data && Array.isArray(messagesData.data)) {
+                    messagesArray = messagesData.data;
+                } 
+                // Se for array direto
+                else if (Array.isArray(messagesData)) {
+                    messagesArray = messagesData;
+                }
+            }
+            
+            // As mensagens vêm ordenadas por created_at DESC (mais recentes primeiro)
+            // Mas queremos exibir mais antigas primeiro, então invertemos
+            console.log('Carregando mensagens. Total recebido:', messagesArray.length);
+            setMessages(messagesArray.reverse());
         } catch (err) {
+            console.error('Erro ao carregar mensagens:', err);
             setError(err.response?.data?.message || 'Erro ao carregar mensagens');
+            setMessages([]);
         } finally {
             setLoading(false);
         }
@@ -70,7 +91,22 @@ export const useChat = (conversationId = null) => {
                 }
             );
             
-            // A mensagem será adicionada automaticamente via evento de broadcasting
+            // Adicionar mensagem imediatamente (otimisticamente) antes do evento de broadcasting
+            if (response.data.success && response.data.data) {
+                const newMessage = response.data.data;
+                console.log('Mensagem enviada com sucesso, adicionando otimisticamente:', newMessage);
+                setMessages(prev => {
+                    // Verificar se já não existe (evitar duplicatas quando o evento chegar)
+                    const exists = prev.find(m => m.id === newMessage.id);
+                    if (exists) {
+                        console.log('Mensagem já existe na lista, ignorando duplicata');
+                        return prev;
+                    }
+                    console.log('Adicionando mensagem. Total antes:', prev.length, 'Total depois:', prev.length + 1);
+                    return [...prev, newMessage];
+                });
+            }
+            
             return response.data.data;
         } catch (err) {
             setError(err.response?.data?.message || 'Erro ao enviar mensagem');
@@ -121,14 +157,34 @@ export const useChat = (conversationId = null) => {
 
         const channel = echo.private(`conversation.${currentConversation.id}`);
 
-        // Evento de nova mensagem
+        // Evento de nova mensagem (nome do evento conforme MessageSent.php)
+        // Laravel Echo escuta eventos privados sem o ponto inicial
         channel.listen('message.sent', (data) => {
-            setMessages(prev => [data.message, ...prev]);
+            console.log('Evento message.sent recebido:', data);
+            
+            // Verificar se a mensagem é da conversa atual
+            if (data.message && data.message.conversation_id === currentConversation.id) {
+                console.log('Adicionando mensagem à conversa atual:', data.message);
+                setMessages(prev => {
+                    // Verificar se a mensagem já não existe (evitar duplicatas)
+                    const exists = prev.find(m => m.id === data.message.id);
+                    if (exists) {
+                        console.log('Mensagem já existe, ignorando:', data.message.id);
+                        return prev;
+                    }
+                    
+                    console.log('Mensagens antes:', prev.length, 'Mensagens depois:', prev.length + 1);
+                    // Adicionar no final (mensagens mais recentes vão no final)
+                    return [...prev, data.message];
+                });
+            } else {
+                console.log('Mensagem não é da conversa atual. ID da conversa:', data.message?.conversation_id, 'Conversa atual:', currentConversation.id);
+            }
             
             // Atualizar lista de conversas
             setConversations(prev => 
                 prev.map(conv => 
-                    conv.id === data.message.conversation_id 
+                    conv.id === data.message?.conversation_id 
                         ? { ...conv, last_activity_at: data.message.created_at }
                         : conv
                 )

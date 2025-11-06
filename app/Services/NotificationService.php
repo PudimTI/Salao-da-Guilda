@@ -10,6 +10,7 @@ use App\Notifications\FriendRequestAccepted;
 use App\Notifications\FriendRequestRejected;
 use App\Notifications\FriendshipRemoved;
 use App\Notifications\UserBlocked;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification as NotificationFacade;
 
 class NotificationService
@@ -19,8 +20,30 @@ class NotificationService
      */
     public function sendFriendRequestNotification(FriendRequest $friendRequest): void
     {
+        // Verificar se a solicitação existe e está pendente
+        if (!$friendRequest || !$friendRequest->id || $friendRequest->status !== 'pending') {
+            Log::warning('Tentativa de enviar notificação para solicitação inválida', [
+                'request_id' => $friendRequest->id ?? null,
+                'status' => $friendRequest->status ?? null
+            ]);
+            return;
+        }
+
+        // Recarregar relacionamentos para garantir que estão disponíveis
+        $friendRequest->load(['fromUser', 'toUser']);
+        
         $fromUser = $friendRequest->fromUser;
         $toUser = $friendRequest->toUser;
+
+        // Verificar se os usuários existem
+        if (!$fromUser || !$toUser) {
+            Log::warning('Tentativa de enviar notificação para solicitação com usuários inválidos', [
+                'request_id' => $friendRequest->id,
+                'from_user_id' => $friendRequest->from_user_id,
+                'to_user_id' => $friendRequest->to_user_id
+            ]);
+            return;
+        }
 
         // Criar notificação no banco
         Notification::create([
@@ -39,7 +62,12 @@ class NotificationService
         ]);
 
         // Enviar notificação em tempo real (se configurado)
-        $toUser->notify(new FriendRequestReceived($friendRequest));
+        try {
+            $toUser->notify(new FriendRequestReceived($friendRequest));
+        } catch (\Exception $e) {
+            Log::error('Erro ao enviar notificação em tempo real: ' . $e->getMessage());
+            // Não falha a criação da notificação no banco
+        }
     }
 
     /**
@@ -186,8 +214,38 @@ class NotificationService
             $query->where('read', false);
         }
 
-        return $query->orderBy('created_at', 'desc')
+        $notifications = $query->orderBy('created_at', 'desc')
             ->paginate($perPage);
+
+        // Filtrar notificações órfãs de solicitações de amizade
+        if ($type === 'friend_request' || !$type) {
+            $notifications->getCollection()->transform(function ($notification) {
+                if ($notification->type === 'friend_request') {
+                    $payload = $notification->payload ?? [];
+                    $requestId = $payload['request_id'] ?? null;
+
+                    if ($requestId) {
+                        $friendRequest = FriendRequest::find($requestId);
+                        // Se a solicitação não existe ou não está pendente, marcar como lida
+                        // para que não apareça como notificação pendente
+                        if (!$friendRequest || $friendRequest->status !== 'pending' || !$friendRequest->fromUser) {
+                            // Não retornar a notificação se a solicitação não existe mais
+                            return null;
+                        }
+                    }
+                }
+                return $notification;
+            });
+
+            // Remover notificações null
+            $notifications->setCollection(
+                $notifications->getCollection()->filter(function ($notification) {
+                    return $notification !== null;
+                })
+            );
+        }
+
+        return $notifications;
     }
 
     /**
@@ -200,5 +258,49 @@ class NotificationService
         return Notification::where('created_at', '<', $cutoffDate)
             ->where('read', true)
             ->delete();
+    }
+
+    /**
+     * Limpar notificações órfãs de solicitações de amizade
+     * Remove notificações que apontam para solicitações que não existem mais
+     * ou que não estão mais pendentes
+     */
+    public function cleanupOrphanedFriendRequestNotifications(): int
+    {
+        $notifications = Notification::where('type', 'friend_request')
+            ->where('read', false)
+            ->get();
+
+        $deletedCount = 0;
+
+        foreach ($notifications as $notification) {
+            $payload = $notification->payload ?? [];
+            $requestId = $payload['request_id'] ?? null;
+
+            if (!$requestId) {
+                // Notificação sem request_id, pode ser antiga ou corrompida
+                $notification->delete();
+                $deletedCount++;
+                continue;
+            }
+
+            // Verificar se a solicitação existe e está pendente
+            $friendRequest = FriendRequest::find($requestId);
+            
+            if (!$friendRequest || $friendRequest->status !== 'pending') {
+                // Solicitação não existe ou não está mais pendente
+                $notification->delete();
+                $deletedCount++;
+                continue;
+            }
+
+            // Verificar se o fromUser ainda existe
+            if (!$friendRequest->fromUser) {
+                $notification->delete();
+                $deletedCount++;
+            }
+        }
+
+        return $deletedCount;
     }
 }

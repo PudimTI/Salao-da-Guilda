@@ -43,9 +43,19 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ route('login') }}" class="space-y-6">
-            @csrf
-            
+        <div id="login-error" class="hidden mb-6 bg-red-500/20 border border-red-500/30 rounded-lg p-4">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-exclamation-triangle text-red-400"></i>
+                </div>
+                <div class="ml-3">
+                    <h3 class="text-sm font-medium text-red-200">Erro na autenticação</h3>
+                    <p id="login-error-message" class="mt-2 text-sm text-red-100"></p>
+                </div>
+            </div>
+        </div>
+
+        <form id="login-form" class="space-y-6">
             <div>
                 <label for="email" class="block text-sm font-medium text-white/90 mb-2">
                     Email
@@ -111,13 +121,101 @@
             <div>
                 <button 
                     type="submit" 
-                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all duration-200"
+                    id="login-submit"
+                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <i class="fas fa-sign-in-alt mr-2"></i>
-                    Entrar
+                    <span id="login-submit-text">Entrar</span>
                 </button>
             </div>
         </form>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const loginForm = document.getElementById('login-form');
+                const errorDiv = document.getElementById('login-error');
+                const errorMessage = document.getElementById('login-error-message');
+                const submitButton = document.getElementById('login-submit');
+                const submitText = document.getElementById('login-submit-text');
+
+                loginForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    // Mostrar loading
+                    submitButton.disabled = true;
+                    submitText.textContent = 'Entrando...';
+                    errorDiv.classList.add('hidden');
+
+                    const email = document.getElementById('email').value;
+                    const password = document.getElementById('password').value;
+                    const remember = document.getElementById('remember').checked;
+
+                    console.log('🔐 [Login] Iniciando login...');
+                    console.log('🔐 [Login] Email:', email);
+
+                    try {
+                        const response = await fetch('/api/login', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                email: email,
+                                password: password
+                            })
+                        });
+
+                        const data = await response.json();
+                        console.log('📥 [Login] Resposta:', data);
+
+                        if (response.ok && data.success && data.token) {
+                            console.log('✅ [Login] Login bem-sucedido!');
+                            console.log('🎫 [Login] Token recebido:', data.token);
+
+                            // Salvar token no localStorage
+                            localStorage.setItem('auth_token', data.token);
+                            console.log('✅ [Login] Token salvo no localStorage');
+
+                            // Salvar dados do usuário
+                            if (data.user) {
+                                localStorage.setItem('user', JSON.stringify(data.user));
+                                console.log('✅ [Login] Dados do usuário salvos');
+                            }
+
+                            // Aguardar um momento antes de redirecionar para garantir persistência
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                            
+                            // Verificar se o token foi salvo corretamente
+                            const savedToken = localStorage.getItem('auth_token');
+                            if (savedToken) {
+                                console.log('✅ [Login] Token confirmado no localStorage');
+                                console.log('🚀 [Login] Redirecionando para /...');
+                                window.location.href = '/';
+                            } else {
+                                console.error('❌ [Login] Token não foi salvo corretamente!');
+                                errorMessage.textContent = 'Erro ao salvar credenciais. Tente novamente.';
+                                errorDiv.classList.remove('hidden');
+                                submitButton.disabled = false;
+                                submitText.textContent = 'Entrar';
+                            }
+                        } else {
+                            console.error('❌ [Login] Login falhou:', data.message);
+                            errorMessage.textContent = data.message || 'Credenciais inválidas';
+                            errorDiv.classList.remove('hidden');
+                            submitButton.disabled = false;
+                            submitText.textContent = 'Entrar';
+                        }
+                    } catch (error) {
+                        console.error('❌ [Login] Erro:', error);
+                        errorMessage.textContent = 'Erro ao fazer login. Tente novamente.';
+                        errorDiv.classList.remove('hidden');
+                        submitButton.disabled = false;
+                        submitText.textContent = 'Entrar';
+                    }
+                });
+            });
+        </script>
 
         <div class="mt-8 text-center">
             <p class="text-white/70">

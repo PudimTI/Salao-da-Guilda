@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNotifications } from '../hooks/useFriendships';
+import { useNotifications } from '../hooks/useFriendships'; // Usar o mesmo hook que o header
 import NotificationCard from '../components/friendships/NotificationCard';
 import UserProfileCard from '../components/friendships/UserProfileCard';
 import AppLayout from '../components/layout/AppLayout';
@@ -9,12 +9,15 @@ const NotificationsPage = () => {
     const [selectedUser, setSelectedUser] = useState(null);
     const [showUserProfile, setShowUserProfile] = useState(false);
     
-    const { notifications, unreadCount, markAsRead, markAllAsRead, loading, error } = useNotifications();
+    const { notifications = [], unreadCount = 0, markAsRead, loading, error, markAllAsRead, refresh, refreshUnreadCount } = useNotifications();
 
     const handleNotificationClick = (notification) => {
         // Marcar como lida se não estiver lida
-        if (!notification.read_at) {
-            markAsRead(notification.id);
+        if (!notification.read_at && !notification.read && markAsRead) {
+            // Passar o ID como número ou array único elemento
+            markAsRead(notification.id).catch(err => {
+                console.error('Erro ao marcar notificação como lida:', err);
+            });
         }
 
         // Executar ação baseada no tipo de notificação
@@ -50,7 +53,12 @@ const NotificationsPage = () => {
 
     const handleMarkAllAsRead = async () => {
         try {
-            await markAllAsRead();
+            // Se markAllAsRead não existir, usar markAsRead sem IDs
+            if (markAllAsRead) {
+                await markAllAsRead();
+            } else if (markAsRead) {
+                await markAsRead([]); // Array vazio marca todas
+            }
             alert('Todas as notificações foram marcadas como lidas!');
         } catch (error) {
             alert('Erro ao marcar notificações como lidas: ' + error.message);
@@ -62,22 +70,25 @@ const NotificationsPage = () => {
         console.log('Abrir chat com usuário:', userId);
     };
 
-    const filteredNotifications = notifications.filter(notification => {
+    // Garantir que notifications seja sempre um array antes de filtrar
+    const filteredNotifications = (Array.isArray(notifications) ? notifications : []).filter(notification => {
+        if (!notification) return false;
         if (filter === 'all') return true;
-        if (filter === 'unread') return !notification.read_at;
+        if (filter === 'unread') return !notification.read_at && !notification.read;
         return notification.type === filter;
     });
 
     const getFilterCount = (filterType) => {
+        const notificationsArray = Array.isArray(notifications) ? notifications : [];
         switch (filterType) {
             case 'all':
-                return notifications.length;
+                return notificationsArray.length;
             case 'unread':
-                return unreadCount;
+                return unreadCount || notificationsArray.filter(n => !n.read_at && !n.read).length;
             case 'friend_request':
-                return notifications.filter(n => n.type === 'friend_request').length;
+                return notificationsArray.filter(n => n.type === 'friend_request').length;
             case 'friend_request_accepted':
-                return notifications.filter(n => n.type === 'friend_request_accepted').length;
+                return notificationsArray.filter(n => n.type === 'friend_request_accepted').length;
             default:
                 return 0;
         }
@@ -143,6 +154,18 @@ const NotificationsPage = () => {
 
                         {/* Ações */}
                         <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => {
+                                    if (refresh) {
+                                        refresh();
+                                        refreshUnreadCount();
+                                    }
+                                }}
+                                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                                title="Atualizar notificações"
+                            >
+                                🔄 Atualizar
+                            </button>
                             <button
                                 onClick={() => window.location.href = '/amigos'}
                                 className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
@@ -213,15 +236,44 @@ const NotificationsPage = () => {
                                 <p className="text-gray-600 mb-4">
                                     {filter === 'unread' 
                                         ? 'Todas as suas notificações foram lidas'
-                                        : 'Você ainda não tem notificações'
+                                        : loading 
+                                            ? 'Carregando notificações...'
+                                            : notifications.length === 0
+                                                ? 'Você ainda não tem notificações'
+                                                : `Filtro "${filter}" não encontrou notificações. Total: ${notifications.length}`
                                     }
                                 </p>
-                                <button
-                                    onClick={() => window.location.href = '/amigos'}
-                                    className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
-                                >
-                                    Ver Amigos
-                                </button>
+                                {!loading && (
+                                    <div className="flex gap-2 justify-center">
+                                        <button
+                                            onClick={() => window.location.href = '/amigos'}
+                                            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+                                        >
+                                            Ver Amigos
+                                        </button>
+                                        {(notifications.length === 0 || refresh) && (
+                                            <button
+                                                onClick={() => {
+                                                    if (refresh) {
+                                                        refresh();
+                                                        refreshUnreadCount();
+                                                    } else {
+                                                        window.location.reload();
+                                                    }
+                                                }}
+                                                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                                            >
+                                                🔄 Atualizar
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                                {/* Debug info - remover em produção */}
+                                {process.env.NODE_ENV === 'development' && (
+                                    <div className="mt-4 text-xs text-gray-400">
+                                        Debug: notifications={notifications.length}, filtered={filteredNotifications.length}, filter={filter}, loading={loading ? 'true' : 'false'}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
