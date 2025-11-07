@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useRelationshipStatus } from '../hooks/useFriendships';
 import axios from 'axios';
+import ReportModal from './ReportModal';
 
 const UserProfileCard = ({ user, onClose, onNavigate }) => {
     const [message, setMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
     
     const { status, loading, sendFriendRequest, refresh } = useRelationshipStatus(user.id);
 
@@ -199,30 +201,30 @@ const UserProfileCard = ({ user, onClose, onNavigate }) => {
 
                 {/* Footer */}
                 <div className="px-6 py-4 border-t border-gray-200">
-                    <div className="flex justify-between items-center space-x-3">
-                        <button
-                            onClick={onClose}
-                            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
-                        >
-                            Fechar
-                        </button>
-                        
-                        <div className="flex space-x-2">
-                            {status?.status === 'active' && (
-                                <button
-                                    onClick={handleStartChat}
-                                    disabled={isLoading}
-                                    className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                    </svg>
-                                    <span>{isLoading ? 'Abrindo...' : 'Mensagem'}</span>
-                                </button>
-                            )}
+                    <div className="flex flex-col space-y-3">
+                        <div className="flex justify-between items-center space-x-3">
+                            <button
+                                onClick={onClose}
+                                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+                            >
+                                Fechar
+                            </button>
                             
-                            {status?.status === 'no_relationship' && (
-                                <>
+                            <div className="flex space-x-2">
+                                {status?.status === 'active' && (
+                                    <button
+                                        onClick={handleStartChat}
+                                        disabled={isLoading}
+                                        className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                        </svg>
+                                        <span>{isLoading ? 'Abrindo...' : 'Mensagem'}</span>
+                                    </button>
+                                )}
+                                
+                                {status?.status === 'no_relationship' && (
                                     <button
                                         onClick={handleSendRequest}
                                         disabled={isLoading || !message.trim()}
@@ -230,12 +232,33 @@ const UserProfileCard = ({ user, onClose, onNavigate }) => {
                                     >
                                         {isLoading ? 'Enviando...' : 'Enviar Solicitação'}
                                     </button>
-                                </>
-                            )}
+                                )}
+                            </div>
                         </div>
+
+                        <button
+                            onClick={() => setShowReportModal(true)}
+                            className="self-start text-sm text-red-600 hover:text-red-700 font-medium flex items-center space-x-2"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9l3 6H9l3-6zm0 8h.01" />
+                            </svg>
+                            <span>Denunciar usuário</span>
+                        </button>
                     </div>
                 </div>
             </div>
+
+            {showReportModal && (
+                <ReportModal
+                    isOpen={showReportModal}
+                    targetType="user"
+                    targetId={user.id}
+                    targetName={user.display_name || user.handle}
+                    targetDescription={user.bio}
+                    onClose={() => setShowReportModal(false)}
+                />
+            )}
         </div>
     );
 };

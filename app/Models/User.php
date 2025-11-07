@@ -2,17 +2,18 @@
 
 namespace App\Models;
 
+use App\Traits\Reportable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasApiTokens, HasFactory, Notifiable, Reportable;
 
     protected $table = 'users';
     public $incrementing = true;
@@ -132,6 +133,16 @@ class User extends Authenticatable
         return $this->hasMany(Notification::class, 'user_id');
     }
 
+    public function reportsFiled(): HasMany
+    {
+        return $this->hasMany(Report::class, 'reporter_id');
+    }
+
+    public function reportsHandled(): HasMany
+    {
+        return $this->hasMany(Report::class, 'handled_by');
+    }
+
     public function friendRequestsSent(): HasMany
     {
         return $this->hasMany(FriendRequest::class, 'from_user_id');
@@ -196,6 +207,6 @@ class User extends Authenticatable
      */
     public function canAccessPanel(\Filament\Panel $panel): bool
     {
-        return $this->isAdmin();
+        return $this->isModerator();
     }
 }

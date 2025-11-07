@@ -2,11 +2,12 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Route;
 use App\Models\Character;
 use App\Policies\CharacterPolicy;
+use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -27,5 +28,7 @@ class AppServiceProvider extends ServiceProvider
         
         // Registrar rotas de friendship
         Route::prefix('api')->group(base_path('routes/api-friendship.php'));
+
+        Relation::enforceMorphMap(config('reports.targets'));
     }
 }

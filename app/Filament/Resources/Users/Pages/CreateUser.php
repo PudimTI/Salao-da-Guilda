@@ -3,12 +3,16 @@
 namespace App\Filament\Resources\Users\Pages;
 
 use App\Filament\Resources\Users\UserResource;
+use App\Services\AdminAuditLogger;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Hash;
 
 class CreateUser extends CreateRecord
 {
     protected static string $resource = UserResource::class;
+
+    protected array $auditPayload = [];
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
@@ -30,7 +34,16 @@ class CreateUser extends CreateRecord
         unset($data['password']);
         unset($data['password_confirmation']);
 
+        $this->auditPayload = Arr::only($data, ['handle', 'email', 'role', 'status']);
+
         return $data;
+    }
+
+    protected function afterCreate(): void
+    {
+        AdminAuditLogger::log('user.created', $this->record, [
+            'payload' => $this->auditPayload,
+        ]);
     }
 
     protected function getRedirectUrl(): string

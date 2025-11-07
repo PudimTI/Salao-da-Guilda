@@ -10,6 +10,15 @@ class CampaignPolicy
 {
     use HandlesAuthorization;
 
+    public function before(User $user, string $ability)
+    {
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return null;
+    }
+
     public function view(User $user, Campaign $campaign)
     {
         // Pode ver se é o dono, membro, ou se a campanha é pública

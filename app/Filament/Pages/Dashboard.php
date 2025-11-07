@@ -2,9 +2,7 @@
 
 namespace App\Filament\Pages;
 
-use App\Filament\Widgets\CampaignsStats;
-use App\Filament\Widgets\CharactersStats;
-use App\Filament\Widgets\UsersStats;
+use App\Filament\Widgets\DashboardStats;
 use Filament\Pages\Dashboard as BaseDashboard;
 
 class Dashboard extends BaseDashboard
@@ -18,9 +16,7 @@ class Dashboard extends BaseDashboard
     protected function getHeaderWidgets(): array
     {
         return [
-            UsersStats::class,
-            CampaignsStats::class,
-            CharactersStats::class,
+            DashboardStats::class,
         ];
     }
 }

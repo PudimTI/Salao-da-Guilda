@@ -4,6 +4,7 @@ use App\Http\Controllers\FriendshipController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\RecommendationController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\DiceRollController;
@@ -330,6 +331,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
+    });
+
+    Route::prefix('reports')->group(function () {
+        Route::get('/', [ReportController::class, 'index']);
+        Route::get('/{report}', [ReportController::class, 'show']);
+        Route::post('/', [ReportController::class, 'store']);
+        Route::patch('/{report}', [ReportController::class, 'update']);
     });
 
     // Rotas de Chat

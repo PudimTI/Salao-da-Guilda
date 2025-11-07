@@ -7,6 +7,7 @@ import { Toaster } from 'react-hot-toast';
 import { apiGet, apiPost, apiDelete } from '../utils/api';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import ReportModal from './ReportModal';
 
 const CampaignDetailPage = ({ campaignId }) => {
     const [campaign, setCampaign] = useState(null);
@@ -15,6 +16,7 @@ const CampaignDetailPage = ({ campaignId }) => {
     const [isMember, setIsMember] = useState(false);
     const [isOwner, setIsOwner] = useState(false);
     const [showInviteModal, setShowInviteModal] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
     const isLoadingRef = useRef(false); // Ref para evitar múltiplas chamadas simultâneas
 
     const loadCampaign = useCallback(async () => {
@@ -255,6 +257,16 @@ const CampaignDetailPage = ({ campaignId }) => {
                                     Sair da Campanha
                                 </button>
                             )}
+
+                            <button
+                                onClick={() => setShowReportModal(true)}
+                                className="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded font-medium transition-colors flex items-center"
+                            >
+                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9l3 6H9l3-6zm0 8h.01" />
+                                </svg>
+                                Denunciar campanha
+                            </button>
                         </div>
                     </div>
 
@@ -437,6 +449,17 @@ const CampaignDetailPage = ({ campaignId }) => {
 
             {/* Toaster para notificações */}
             <Toaster position="top-right" />
+
+            {showReportModal && (
+                <ReportModal
+                    isOpen={showReportModal}
+                    targetType="campaign"
+                    targetId={campaign.id}
+                    targetName={campaign.name}
+                    targetDescription={campaign.description}
+                    onClose={() => setShowReportModal(false)}
+                />
+            )}
         </div>
     );
 };

@@ -168,3 +168,5 @@ O módulo de chat está agora **100% funcional** e pronto para produção! 🎉
 
 
 
+
+
