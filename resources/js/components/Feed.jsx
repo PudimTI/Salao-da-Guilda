@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './Header';
 import Footer from './Footer';
 import Recommendations from './Recommendations';
@@ -16,6 +16,11 @@ const Feed = () => {
     const [hasMore, setHasMore] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [selectedTags, setSelectedTags] = useState([]);
+    const [pagination, setPagination] = useState({
+        current_page: 1,
+        last_page: 1,
+    });
+    const hasLoadedInitially = useRef(false);
 
     const fetchPosts = async (pageNum = 1) => {
         try {
@@ -40,7 +45,15 @@ const Feed = () => {
                 setPosts(prev => [...prev, ...data.posts.data]);
             }
             
-            setHasMore(data.posts.data.length > 0);
+            setPagination(prev => ({
+                ...prev,
+                ...(data.pagination || {}),
+            }));
+            setPage(pageNum);
+            const hasNextPage = data.pagination
+                ? data.pagination.current_page < data.pagination.last_page
+                : (data.posts.meta?.current_page || pageNum) < (data.posts.meta?.total_pages || pageNum);
+            setHasMore(hasNextPage);
             setError(null);
         } catch (err) {
             setError(err.message);
@@ -64,14 +77,18 @@ const Feed = () => {
         console.log('🎫 [Feed] Token auth_token:', token ? `SIM (${token.substring(0, 30)}...)` : 'NÃO');
         console.log('🎫 [Feed] Token completo:', token);
         
-        fetchPosts();
+        fetchPosts().finally(() => {
+            hasLoadedInitially.current = true;
+        });
     }, []);
 
     // Recarregar posts quando as tags selecionadas mudarem
     useEffect(() => {
-        if (selectedTags.length > 0 || posts.length > 0) {
-            fetchPosts(1);
+        if (!hasLoadedInitially.current) {
+            return;
         }
+        setPage(1);
+        fetchPosts(1);
     }, [selectedTags]);
 
     const handleLike = async (postId) => {
@@ -130,7 +147,30 @@ const Feed = () => {
     };
 
     const handlePostCreated = (newPost) => {
-        setPosts(prev => [newPost, ...prev]);
+        const matchesSelectedTags = selectedTags.length === 0
+            || (newPost.tags || []).some(tag =>
+                selectedTags.some(selected => selected.id === tag.id)
+            );
+
+        if (matchesSelectedTags) {
+            setPosts(prev => [newPost, ...prev]);
+        }
+
+        // Atualizar contador de páginas caso o novo post altere o total
+        setPagination(prev => ({
+            ...prev,
+            total: (prev.total || 0) + 1,
+        }));
+    };
+
+    const handleTagClick = (tag) => {
+        setSelectedTags(prev => {
+            const alreadySelected = prev.some(selected => selected.id === tag.id);
+            if (alreadySelected) {
+                return prev;
+            }
+            return [...prev, tag];
+        });
     };
 
     const loadMore = () => {
@@ -234,6 +274,7 @@ const Feed = () => {
                                             onLike={handleLike}
                                             onRepost={handleRepost}
                                             onComment={handleComment}
+                                            onTagClick={handleTagClick}
                                         />
                                     ))}
                                 </div>

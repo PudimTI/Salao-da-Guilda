@@ -3,6 +3,7 @@ import Header from './Header';
 import Footer from './Footer';
 import CharacterCard from './CharacterCard';
 import CharacterForm from './CharacterForm';
+import CampaignSelectModal from './CampaignSelectModal';
 import { apiGet, apiPost, apiPut, apiDelete } from '../utils/api';
 
 const CharactersPage = () => {
@@ -11,6 +12,8 @@ const CharactersPage = () => {
     const [error, setError] = useState(null);
     const [showCharacterForm, setShowCharacterForm] = useState(false);
     const [editingCharacter, setEditingCharacter] = useState(null);
+    const [showCampaignModal, setShowCampaignModal] = useState(false);
+    const [selectedCharacter, setSelectedCharacter] = useState(null);
 
     useEffect(() => {
         loadCharacters();
@@ -66,9 +69,34 @@ const CharactersPage = () => {
         }
     };
 
-    const handleJoinCampaign = async (characterId) => {
-        // Implementar lógica para entrar em campanha
-        console.log('Entrar em campanha para personagem:', characterId);
+    const handleJoinCampaign = (characterId) => {
+        const character = characters.find(c => c.id === characterId);
+        if (character) {
+            setSelectedCharacter(character);
+            setShowCampaignModal(true);
+        }
+    };
+
+    const handleCampaignJoinSuccess = () => {
+        // Recarregar personagens após associação bem-sucedida
+        loadCharacters();
+        setShowCampaignModal(false);
+        setSelectedCharacter(null);
+    };
+
+    const handleLeaveCampaign = async (characterId, campaignId) => {
+        if (!confirm('Tem certeza que deseja remover este personagem da campanha?')) {
+            return;
+        }
+
+        try {
+            await apiDelete(`/api/characters/${characterId}/campaigns/${campaignId}`);
+            // Recarregar personagens após remoção
+            loadCharacters();
+        } catch (error) {
+            console.error('Erro ao remover personagem da campanha:', error);
+            alert('Erro ao remover personagem da campanha. Tente novamente.');
+        }
     };
 
     const openCreateForm = () => {
@@ -136,6 +164,7 @@ const CharactersPage = () => {
                                     onEdit={handleEditCharacter}
                                     onDelete={handleDeleteCharacter}
                                     onJoinCampaign={handleJoinCampaign}
+                                    onLeaveCampaign={handleLeaveCampaign}
                                 />
                             ))}
                         </div>
@@ -168,6 +197,19 @@ const CharactersPage = () => {
                     character={editingCharacter}
                     onSave={editingCharacter ? handleEditCharacter : handleCreateCharacter}
                     onCancel={closeForm}
+                />
+            )}
+
+            {/* Campaign Select Modal */}
+            {showCampaignModal && (
+                <CampaignSelectModal
+                    isOpen={showCampaignModal}
+                    onClose={() => {
+                        setShowCampaignModal(false);
+                        setSelectedCharacter(null);
+                    }}
+                    character={selectedCharacter}
+                    onSuccess={handleCampaignJoinSuccess}
                 />
             )}
         </div>

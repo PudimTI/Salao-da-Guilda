@@ -19,6 +19,12 @@ return new class extends Migration
             $table->timestamp('valid_until')->nullable();
 
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            
+            // Índices para otimização de queries
+            $table->index(['user_id', 'score']);
+            $table->index(['target_type', 'target_id']);
+            $table->index('valid_until');
+            $table->index(['user_id', 'valid_until']);
         });
     }
 

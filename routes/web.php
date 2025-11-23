@@ -233,6 +233,10 @@ Route::middleware(['inject.bearer', 'auth:sanctum'])->group(function () {
         return view('profile');
     })->name('profile');
     
+    Route::get('/configuracoes', function () {
+        return view('configuracoes');
+    })->name('configuracoes');
+    
     Route::get('/campanha', function () {
         return view('campaign-react');
     })->name('campaign');

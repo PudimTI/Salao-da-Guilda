@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cadastro - Salão da Guilda</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="{{ asset('src/favicon_io/favicon.ico') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('src/favicon_io/favicon-16x16.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('src/favicon_io/favicon-32x32.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('src/favicon_io/apple-touch-icon.png') }}">
+    <link rel="manifest" href="{{ asset('src/favicon_io/site.webmanifest') }}">
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
@@ -43,7 +51,7 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ route('register') }}" class="space-y-6">
+        <form id="register-form" method="POST" action="{{ route('register') }}" class="space-y-6">
             @csrf
             
             
@@ -178,5 +186,112 @@
             </p>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const registerForm = document.getElementById('register-form');
+
+            if (!registerForm) {
+                console.warn('📝 [Register] Formulário de registro não encontrado');
+                return;
+            }
+
+            registerForm.addEventListener('submit', async function (event) {
+                event.preventDefault();
+
+                const submitButton = registerForm.querySelector('button[type="submit"]');
+                const submitOriginalText = submitButton ? submitButton.innerHTML : '';
+
+                if (submitButton) {
+                    submitButton.disabled = true;
+                    submitButton.innerHTML = '<span class="animate-pulse">Criando conta...</span>';
+                }
+
+                const formData = {
+                    handle: registerForm.handle.value,
+                    display_name: registerForm.display_name.value,
+                    email: registerForm.email.value,
+                    password: registerForm.password.value,
+                    password_confirmation: registerForm.password_confirmation.value,
+                    terms: registerForm.terms.checked ? 'on' : ''
+                };
+
+                const csrfToken = registerForm.querySelector('input[name="_token"]')?.value;
+
+                console.log('📝 [Register] Enviando formulário de registro...', {
+                    handle: formData.handle,
+                    email: formData.email
+                });
+
+                try {
+                    const response = await fetch(registerForm.action, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken || ''
+                        },
+                        body: JSON.stringify(formData)
+                    });
+
+                    const data = await response.json().catch(() => null);
+
+                    console.log('📥 [Register] Resposta recebida:', data);
+
+                    if (response.ok && data?.success && data?.token) {
+                        console.log('✅ [Register] Registro realizado com sucesso. Salvando token...');
+                        localStorage.setItem('auth_token', data.token);
+
+                        if (data.user) {
+                            localStorage.setItem('user', JSON.stringify(data.user));
+                        }
+
+                        await new Promise(resolve => setTimeout(resolve, 100));
+
+                        const savedToken = localStorage.getItem('auth_token');
+                        if (savedToken) {
+                            console.log('✅ [Register] Token confirmado no localStorage.');
+
+                            const showOnboarding = window.showUserOnboardingModal;
+                            if (typeof showOnboarding === 'function') {
+                                showOnboarding({
+                                    user: data.user,
+                                    preferences: data.user?.preferences ?? undefined,
+                                    blacklist: data.user?.filters?.blacklist_tags ?? undefined,
+                                    onComplete: () => {
+                                        window.location.href = '/';
+                                    }
+                                });
+                                return;
+                            }
+
+                            console.warn('⚠️ [Register] Modal de onboarding indisponível. Redirecionando...');
+                            window.location.href = '/';
+                            return;
+                        }
+
+                        console.error('❌ [Register] Token não foi persistido no localStorage.');
+                        alert('Erro ao salvar credenciais localmente. Tente novamente.');
+                    } else {
+                        console.error('❌ [Register] Falha no registro:', data);
+
+                        const errorMessage = data?.message
+                            || (data?.errors ? Object.values(data.errors).flat().join('\n') : null)
+                            || 'Erro ao criar conta. Verifique os dados e tente novamente.';
+
+                        alert(errorMessage);
+                    }
+                } catch (error) {
+                    console.error('❌ [Register] Erro inesperado:', error);
+                    alert('Erro inesperado ao criar conta. Tente novamente em instantes.');
+                } finally {
+                    if (submitButton) {
+                        submitButton.disabled = false;
+                        submitButton.innerHTML = submitOriginalText;
+                    }
+                }
+            });
+        });
+    </script>
 </body>
 </html>

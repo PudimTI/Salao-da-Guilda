@@ -32,13 +32,16 @@ const Recommendations = () => {
             
             console.log('✅ [Recommendations] Token encontrado, fazendo requisição...');
             
-            const response = await apiGet('/api/recommendations?type=campaign&limit=3');
+            const response = await apiGet('/api/recommendations?type=campaign&limit=10');
             
-            if (response.success && response.data.data) {
-                setRecommendations(response.data.data);
+            if (response.success && response.data) {
+                // A resposta vem com estrutura: { success: true, data: { data: [...], meta: {...} } }
+                const recommendationsData = response.data.data || response.data || [];
+                setRecommendations(Array.isArray(recommendationsData) ? recommendationsData : []);
+                
                 // Selecionar a primeira recomendação por padrão
-                if (response.data.data.length > 0) {
-                    setSelectedRecommendation(response.data.data[0]);
+                if (Array.isArray(recommendationsData) && recommendationsData.length > 0) {
+                    setSelectedRecommendation(recommendationsData[0]);
                 }
             } else {
                 setRecommendations([]);
@@ -71,8 +74,17 @@ const Recommendations = () => {
                 force: true
             });
             
-            if (response.success) {
-                await fetchRecommendations(); // Recarregar após gerar
+            if (response.success && response.data) {
+                // Atualizar recomendações com as geradas
+                const recommendationsData = response.data.data || response.data || [];
+                setRecommendations(Array.isArray(recommendationsData) ? recommendationsData : []);
+                
+                if (Array.isArray(recommendationsData) && recommendationsData.length > 0) {
+                    setSelectedRecommendation(recommendationsData[0]);
+                }
+            } else {
+                // Se não retornou dados, recarregar
+                await fetchRecommendations();
             }
         } catch (err) {
             console.error('Erro ao gerar recomendações:', err);
@@ -303,12 +315,13 @@ const Recommendations = () => {
                         </div>
 
                         {/* Tags da campanha */}
-                        {selectedRecommendation.target?.tags && selectedRecommendation.target.tags.length > 0 && (
+                                    {selectedRecommendation.target?.tags && Array.isArray(selectedRecommendation.target.tags) && selectedRecommendation.target.tags.length > 0 && (
                             <div className="mt-4">
+                                <h4 className="text-sm font-semibold text-gray-700 mb-2">Tags:</h4>
                                 <div className="flex flex-wrap gap-2">
                                     {selectedRecommendation.target.tags.map((tag) => (
                                         <span 
-                                            key={tag.id}
+                                            key={tag.id || tag.name}
                                             className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded"
                                         >
                                             {tag.name}

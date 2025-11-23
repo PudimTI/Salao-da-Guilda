@@ -229,9 +229,18 @@ class PostController extends Controller
                 'media_count' => $post->getMedia('attachments')->count()
             ]);
 
+            $post->load([
+                'author',
+                'mentions.mentionedUser',
+                'likes',
+                'comments.author',
+                'reposts',
+                'tags',
+            ]);
+
             return response()->json([
                 'message' => 'Post criado com sucesso',
-                'post' => new PostResource($post->load(['author', 'mentions']))
+                'post' => new PostResource($post)
             ], 201);
 
         } catch (\Exception $e) {

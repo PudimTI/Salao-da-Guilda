@@ -18,3 +18,10 @@ class ViewPost extends ViewRecord
     }
 }
 
+
+
+
+
+
+
+

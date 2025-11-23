@@ -63,10 +63,11 @@ class RegisterController extends Controller
         // Atualizar último login
         $user->update(['last_login_at' => now()]);
 
+        // Criar token de acesso (persistido em Sanctum) para liberar navegação
+        $token = $user->createToken('auth-token')->plainTextToken;
+
         // Se a requisição for JSON (ex.: SPA/API), já retornar token de acesso
         if ($request->wantsJson() || $request->expectsJson() || $request->is('api/*')) {
-            $token = $user->createToken('auth-token')->plainTextToken;
-
             return response()->json([
                 'success' => true,
                 'token' => $token,
@@ -79,9 +80,31 @@ class RegisterController extends Controller
                     'handle' => $user->handle ?? null,
                 ],
                 'message' => 'Conta criada e autenticada com sucesso'
-            ]);
+            ])
+            ->cookie(
+                'auth_token',
+                $token,
+                60 * 24 * 30,
+                '/',
+                null,
+                app()->environment('production'),
+                true,
+                false,
+                'Lax'
+            );
         }
 
-        return redirect('/')->with('success', 'Conta criada com sucesso!');
+        return redirect('/')->with('success', 'Conta criada com sucesso!')
+            ->cookie(
+                'auth_token',
+                $token,
+                60 * 24 * 30,
+                '/',
+                null,
+                app()->environment('production'),
+                true,
+                false,
+                'Lax'
+            );
     }
 }

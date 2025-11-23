@@ -11,6 +11,7 @@ use App\Http\Requests\InviteToCampaignRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class CampaignController extends Controller
@@ -44,29 +45,33 @@ class CampaignController extends Controller
     {
         $validated = $request->validated();
 
-        $campaign = Campaign::create([
-            'owner_id' => Auth::id(),
-            'name' => $validated['name'],
-            'description' => $validated['description'],
-            'system' => $validated['system'],
-            'type' => $validated['type'],
-            'city' => $validated['city'],
-            'rules' => $validated['rules'],
-            'status' => $validated['status'],
-            'visibility' => $validated['visibility'],
-        ]);
+        $campaign = DB::transaction(function () use ($validated) {
+            $campaign = Campaign::create([
+                'owner_id' => Auth::id(),
+                'name' => $validated['name'],
+                'description' => $validated['description'],
+                'system' => $validated['system'],
+                'type' => $validated['type'],
+                'city' => $validated['city'],
+                'rules' => $validated['rules'],
+                'status' => $validated['status'],
+                'visibility' => $validated['visibility'],
+            ]);
 
-        // Adicionar tags se fornecidas
-        if (!empty($validated['tags'])) {
-            $campaign->tags()->attach($validated['tags']);
-        }
+            // Adicionar tags se fornecidas
+            if (!empty($validated['tags'])) {
+                $campaign->tags()->attach($validated['tags']);
+            }
 
-        // Adicionar o criador como membro com role 'master'
-        $campaign->members()->attach(Auth::id(), [
-            'role' => 'master',
-            'status' => 'active',
-            'joined_at' => now(),
-        ]);
+            // Adicionar o criador como membro com role 'master'
+            $campaign->members()->attach(Auth::id(), [
+                'role' => 'master',
+                'status' => 'active',
+                'joined_at' => now(),
+            ]);
+
+            return $campaign;
+        });
 
         return redirect()->route('campaigns.show', $campaign)
             ->with('success', 'Campanha criada com sucesso!');
@@ -109,19 +114,21 @@ class CampaignController extends Controller
         
         $validated = $request->validated();
 
-        $campaign->update([
-            'name' => $validated['name'],
-            'description' => $validated['description'],
-            'system' => $validated['system'],
-            'type' => $validated['type'],
-            'city' => $validated['city'],
-            'rules' => $validated['rules'],
-            'status' => $validated['status'],
-            'visibility' => $validated['visibility'],
-        ]);
+        DB::transaction(function () use ($campaign, $validated) {
+            $campaign->update([
+                'name' => $validated['name'],
+                'description' => $validated['description'],
+                'system' => $validated['system'],
+                'type' => $validated['type'],
+                'city' => $validated['city'],
+                'rules' => $validated['rules'],
+                'status' => $validated['status'],
+                'visibility' => $validated['visibility'],
+            ]);
 
-        // Atualizar tags
-        $campaign->tags()->sync($validated['tags'] ?? []);
+            // Atualizar tags
+            $campaign->tags()->sync($validated['tags'] ?? []);
+        });
 
         return redirect()->route('campaigns.show', $campaign)
             ->with('success', 'Campanha atualizada com sucesso!');
@@ -410,22 +417,33 @@ class CampaignController extends Controller
     {
         $validated = $request->validated();
 
-        $campaign = Campaign::create([
-            'owner_id' => Auth::id(),
-            'name' => $validated['name'],
-            'description' => $validated['description'],
-            'system' => $validated['system'],
-            'type' => $validated['type'],
-            'city' => $validated['city'],
-            'status' => $validated['status'],
-            'visibility' => $validated['visibility'],
-            'rules' => $validated['rules'],
-        ]);
+        $campaign = DB::transaction(function () use ($validated) {
+            $campaign = Campaign::create([
+                'owner_id' => Auth::id(),
+                'name' => $validated['name'],
+                'description' => $validated['description'],
+                'system' => $validated['system'],
+                'type' => $validated['type'],
+                'city' => $validated['city'],
+                'status' => $validated['status'],
+                'visibility' => $validated['visibility'],
+                'rules' => $validated['rules'],
+            ]);
 
-        // Associar tags se fornecidas
-        if (!empty($validated['tags'])) {
-            $campaign->tags()->attach($validated['tags']);
-        }
+            // Associar tags se fornecidas
+            if (!empty($validated['tags'])) {
+                $campaign->tags()->attach($validated['tags']);
+            }
+
+            // Adicionar o criador como membro com role 'master'
+            $campaign->members()->attach(Auth::id(), [
+                'role' => 'master',
+                'status' => 'active',
+                'joined_at' => now(),
+            ]);
+
+            return $campaign;
+        });
 
         $campaign->load(['owner', 'members', 'tags']);
 
@@ -440,13 +458,30 @@ class CampaignController extends Controller
                 'status' => $campaign->status,
                 'visibility' => $campaign->visibility,
                 'rules' => $campaign->rules,
-                'members_count' => 0,
-                'members' => [],
-                'owner' => $campaign->owner,
-                'tags' => $campaign->tags,
+                'members_count' => $campaign->members->count(),
+                'members' => $campaign->members->map(function ($member) {
+                    return [
+                        'id' => $member->id,
+                        'name' => $member->name,
+                        'display_name' => $member->display_name,
+                        'role' => $member->pivot->role,
+                        'status' => $member->pivot->status,
+                    ];
+                }),
+                'owner' => [
+                    'id' => $campaign->owner->id,
+                    'name' => $campaign->owner->name,
+                    'display_name' => $campaign->owner->display_name,
+                ],
+                'tags' => $campaign->tags->map(function ($tag) {
+                    return [
+                        'id' => $tag->id,
+                        'name' => $tag->name,
+                    ];
+                }),
                 'files' => [],
                 'dice_rolls_count' => 0,
-                'is_member' => false,
+                'is_member' => true,
                 'is_owner' => true,
                 'can_edit' => true,
                 'created_at' => $campaign->created_at,
@@ -461,21 +496,23 @@ class CampaignController extends Controller
         
         $validated = $request->validated();
 
-        $campaign->update([
-            'name' => $validated['name'],
-            'description' => $validated['description'],
-            'system' => $validated['system'],
-            'type' => $validated['type'],
-            'city' => $validated['city'],
-            'status' => $validated['status'],
-            'visibility' => $validated['visibility'],
-            'rules' => $validated['rules'],
-        ]);
+        DB::transaction(function () use ($campaign, $validated) {
+            $campaign->update([
+                'name' => $validated['name'],
+                'description' => $validated['description'],
+                'system' => $validated['system'],
+                'type' => $validated['type'],
+                'city' => $validated['city'],
+                'status' => $validated['status'],
+                'visibility' => $validated['visibility'],
+                'rules' => $validated['rules'],
+            ]);
 
-        // Atualizar tags
-        if (isset($validated['tags'])) {
-            $campaign->tags()->sync($validated['tags']);
-        }
+            // Atualizar tags
+            if (isset($validated['tags'])) {
+                $campaign->tags()->sync($validated['tags']);
+            }
+        });
 
         $campaign->load(['owner', 'members', 'tags']);
 

@@ -3,7 +3,7 @@ import TagList from './TagList';
 import UserProfileCard from './UserProfileCard';
 import ReportModal from './ReportModal';
 
-const FeedPost = ({ post, onLike, onRepost, onComment }) => {
+const FeedPost = ({ post, onLike, onRepost, onComment, onTagClick = null }) => {
     const [isLiking, setIsLiking] = useState(false);
     const [isReposting, setIsReposting] = useState(false);
     const [showComments, setShowComments] = useState(false);
@@ -110,6 +110,7 @@ const FeedPost = ({ post, onLike, onRepost, onComment }) => {
                             showType={true}
                             className="gap-1"
                             tagClassName="text-xs"
+                            onTagClick={onTagClick}
                         />
                     </div>
                 )}

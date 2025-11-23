@@ -31,6 +31,17 @@ class TagController extends Controller
         $query = Tag::query()
             ->select(['id', 'name', 'type', 'description', 'usage_count', 'is_moderated', 'created_at']);
 
+        // Buscar por IDs específicos
+        if ($request->has('ids')) {
+            $ids = is_array($request->ids) 
+                ? $request->ids 
+                : explode(',', $request->ids);
+            $ids = array_filter(array_map('intval', $ids));
+            if (!empty($ids)) {
+                $query->whereIn('id', $ids);
+            }
+        }
+
         // Filtros
         if ($request->has('type')) {
             $query->where('type', $request->type);
@@ -55,6 +66,14 @@ class TagController extends Controller
 
         if (in_array($sortBy, ['name', 'type', 'usage_count', 'created_at'])) {
             $query->orderBy($sortBy, $sortOrder);
+        }
+
+        // Se buscar por IDs, não paginar
+        if ($request->has('ids')) {
+            $tags = $query->get();
+            return response()->json([
+                'data' => $tags,
+            ]);
         }
 
         $tags = $query->paginate($request->get('per_page', 15));

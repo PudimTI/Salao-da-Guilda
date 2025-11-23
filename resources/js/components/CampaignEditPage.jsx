@@ -25,6 +25,17 @@ const CampaignEditPage = ({ campaignId, campaignData, tags = [], campaignTags = 
         'Powered by the Apocalypse', 'Outros'
     ];
 
+    // Função para obter descrição do status
+    const getStatusDescription = (status) => {
+        const descriptions = {
+            'open': 'Buscando jogadores para começar',
+            'active': 'Campanha iniciada mas possivel nova entrada',
+            'closed': 'Sem possibilidade de entrada de novos jogadores',
+            'paused': 'Campanha em hiatus'
+        };
+        return descriptions[status] || '';
+    };
+
     useEffect(() => {
         if (campaignData) {
             setFormData({
@@ -66,11 +77,33 @@ const CampaignEditPage = ({ campaignId, campaignData, tags = [], campaignTags = 
         setErrors({});
 
         try {
-            await axios.put(`/campaigns/${campaignId}`, formData);
+            // Obter CSRF token
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
+
+            // Configurar headers
+            const headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            };
+
+            if (csrfToken) {
+                headers['X-CSRF-TOKEN'] = csrfToken;
+            }
+
+            // Usar rota API que retorna JSON
+            await axios.put(`/api/campaigns/${campaignId}`, formData, { headers });
+            
+            // Redirecionar para a campanha editada
             window.location.href = `/campaigns/${campaignId}`;
         } catch (error) {
+            console.error('Erro ao atualizar campanha:', error);
             if (error.response?.data?.errors) {
                 setErrors(error.response.data.errors);
+            } else if (error.response?.data?.message) {
+                setErrors({ general: [error.response.data.message] });
+            } else {
+                setErrors({ general: ['Erro ao atualizar campanha. Tente novamente.'] });
             }
         } finally {
             setLoading(false);
@@ -88,6 +121,24 @@ const CampaignEditPage = ({ campaignId, campaignData, tags = [], campaignTags = 
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-8">
+                        {/* Mensagens de Erro Gerais */}
+                        {errors.general && (
+                            <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                                <div className="flex">
+                                    <div className="flex-shrink-0">
+                                        <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                        </svg>
+                                    </div>
+                                    <div className="ml-3">
+                                        <h3 className="text-sm font-medium text-red-800">
+                                            {Array.isArray(errors.general) ? errors.general[0] : errors.general}
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Informações Básicas */}
                         <div className="bg-white rounded-lg shadow-md p-6">
                             <h2 className="text-xl font-semibold text-gray-900 mb-6">Informações Básicas</h2>
@@ -200,6 +251,11 @@ const CampaignEditPage = ({ campaignId, campaignData, tags = [], campaignTags = 
                                         <option value="closed">Fechado</option>
                                         <option value="paused">Pausado</option>
                                     </select>
+                                    {formData.status && (
+                                        <p className="mt-2 text-sm text-gray-600 italic">
+                                            {getStatusDescription(formData.status)}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>

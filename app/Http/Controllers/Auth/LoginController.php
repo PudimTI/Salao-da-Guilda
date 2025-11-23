@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Cookie;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class LoginController extends Controller
 {
@@ -88,9 +90,12 @@ class LoginController extends Controller
     {
         // Revogar tokens Sanctum e limpar sessões/remember tokens
         if ($request->user()) {
-            // Revogar token atual (se existir) e todos os demais tokens
-            if (method_exists($request->user(), 'currentAccessToken') && $request->user()->currentAccessToken()) {
-                $request->user()->currentAccessToken()->delete();
+            // Revogar token atual (se for um PersonalAccessToken válido)
+            if (method_exists($request->user(), 'currentAccessToken')) {
+                $currentAccessToken = $request->user()->currentAccessToken();
+                if ($currentAccessToken instanceof PersonalAccessToken) {
+                    $currentAccessToken->delete();
+                }
             }
             if (method_exists($request->user(), 'tokens')) {
                 $request->user()->tokens()->delete();
@@ -110,14 +115,16 @@ class LoginController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
+        $forgetAuthCookie = Cookie::forget('auth_token');
+
         // Responder adequadamente conforme o tipo de requisição
         if ($request->wantsJson() || $request->expectsJson() || $request->is('api/*')) {
             return response()->json([
                 'success' => true,
                 'message' => 'Logout realizado com sucesso'
-            ]);
+            ])->withCookie($forgetAuthCookie);
         }
 
-        return redirect('/');
+        return redirect('/')->withCookie($forgetAuthCookie);
     }
 }

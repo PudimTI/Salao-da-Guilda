@@ -429,4 +429,52 @@ class FriendshipController extends Controller
             'message' => 'Status do relacionamento recuperado com sucesso'
         ]);
     }
+
+    /**
+     * Listar usuários bloqueados
+     */
+    public function getBlockedUsers(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            $perPage = $request->get('per_page', 15);
+
+            $blockedUsers = Friendship::where('user_id', $user->id)
+                ->where('state', 'blocked')
+                ->with(['friend' => function ($query) {
+                    $query->select('id', 'handle', 'display_name', 'avatar_url', 'bio', 'status');
+                }])
+                ->orderBy('since', 'desc')
+                ->paginate($perPage);
+
+            $data = $blockedUsers->map(function ($friendship) {
+                return [
+                    'id' => $friendship->friend->id,
+                    'handle' => $friendship->friend->handle,
+                    'display_name' => $friendship->friend->display_name,
+                    'avatar_url' => $friendship->friend->avatar_url,
+                    'bio' => $friendship->friend->bio,
+                    'status' => $friendship->friend->status,
+                    'blocked_since' => $friendship->since,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+                'pagination' => [
+                    'current_page' => $blockedUsers->currentPage(),
+                    'last_page' => $blockedUsers->lastPage(),
+                    'per_page' => $blockedUsers->perPage(),
+                    'total' => $blockedUsers->total(),
+                ],
+                'message' => 'Usuários bloqueados recuperados com sucesso'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao recuperar usuários bloqueados: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

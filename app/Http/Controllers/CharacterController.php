@@ -179,8 +179,10 @@ class CharacterController extends Controller
                             'name' => $campaign->name,
                             'system' => $campaign->system,
                             'status' => $campaign->status,
-                            'role_note' => $campaign->pivot->role_note,
-                            'joined_at' => $campaign->pivot->joined_at,
+                            'type' => $campaign->type ?? null,
+                            'description' => $campaign->description ?? null,
+                            'role_note' => $campaign->pivot->role_note ?? null,
+                            'joined_at' => $this->formatJoinedAt($campaign->pivot->joined_at ?? null),
                         ];
                     }),
                     'user' => [
@@ -217,10 +219,11 @@ class CharacterController extends Controller
                         'id' => $campaign->id,
                         'name' => $campaign->name,
                         'system' => $campaign->system,
-                        'type' => $campaign->type,
+                        'type' => $campaign->type ?? null,
                         'status' => $campaign->status,
-                        'role_note' => $campaign->pivot->role_note,
-                        'joined_at' => $campaign->pivot->joined_at,
+                        'description' => $campaign->description ?? null,
+                        'role_note' => $campaign->pivot->role_note ?? null,
+                        'joined_at' => $this->formatJoinedAt($campaign->pivot->joined_at ?? null),
                     ];
                 }),
                 'user' => [
@@ -347,10 +350,29 @@ class CharacterController extends Controller
         $character->campaigns()->attach($validated['campaign_id'], [
             'player_id' => Auth::id(),
             'joined_at' => now(),
-            'role_note' => $validated['role_note'],
+            'role_note' => $validated['role_note'] ?? null,
         ]);
 
-        return response()->json(['message' => 'Personagem adicionado à campanha com sucesso!']);
+        // Recarregar personagem com relacionamentos
+        $character->load(['campaigns', 'user']);
+
+        return response()->json([
+            'message' => 'Personagem adicionado à campanha com sucesso!',
+            'data' => [
+                'id' => $character->id,
+                'name' => $character->name,
+                'campaigns' => $character->campaigns->map(function ($campaign) {
+                    return [
+                        'id' => $campaign->id,
+                        'name' => $campaign->name,
+                        'system' => $campaign->system,
+                        'status' => $campaign->status,
+                        'role_note' => $campaign->pivot->role_note ?? null,
+                        'joined_at' => $this->formatJoinedAt($campaign->pivot->joined_at ?? null),
+                    ];
+                })
+            ]
+        ]);
     }
 
     public function apiLeaveCampaign(Character $character, Campaign $campaign)
@@ -360,6 +382,33 @@ class CharacterController extends Controller
         $character->campaigns()->detach($campaign->id);
         
         return response()->json(['message' => 'Personagem removido da campanha com sucesso!']);
+    }
+
+    /**
+     * Formata joined_at do pivot para ISO string
+     */
+    private function formatJoinedAt($joinedAt)
+    {
+        if (!$joinedAt) {
+            return null;
+        }
+        
+        // Se for objeto Carbon/DateTime, converter para ISO string
+        if (is_object($joinedAt) && method_exists($joinedAt, 'toISOString')) {
+            return $joinedAt->toISOString();
+        }
+        
+        // Se já for string, tentar parsear e formatar
+        if (is_string($joinedAt)) {
+            try {
+                return \Carbon\Carbon::parse($joinedAt)->toISOString();
+            } catch (\Exception $e) {
+                // Se não conseguir parsear, retornar string original
+                return $joinedAt;
+            }
+        }
+        
+        return $joinedAt;
     }
 
     private function getAvailableSystems()

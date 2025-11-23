@@ -38,6 +38,17 @@ const CampaignCreatePage = () => {
         'Powered by the Apocalypse', 'Outros'
     ];
 
+    // Função para obter descrição do status
+    const getStatusDescription = (status) => {
+        const descriptions = {
+            'open': 'Buscando jogadores para começar',
+            'active': 'Campanha iniciada mas possivel nova entrada',
+            'closed': 'Sem possibilidade de entrada de novos jogadores',
+            'paused': 'Campanha em hiatus'
+        };
+        return descriptions[status] || '';
+    };
+
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         
@@ -63,11 +74,33 @@ const CampaignCreatePage = () => {
         setErrors({});
 
         try {
-            const response = await axios.post('/campaigns', formData);
-            window.location.href = `/campaigns/${response.data.campaign.id}`;
+            // Obter CSRF token
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
+
+            // Configurar headers
+            const headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            };
+
+            if (csrfToken) {
+                headers['X-CSRF-TOKEN'] = csrfToken;
+            }
+
+            // Usar rota API que retorna JSON
+            const response = await axios.post('/api/campaigns', formData, { headers });
+            
+            // Redirecionar para a campanha criada
+            window.location.href = `/campaigns/${response.data.data.id}`;
         } catch (error) {
+            console.error('Erro ao criar campanha:', error);
             if (error.response?.data?.errors) {
                 setErrors(error.response.data.errors);
+            } else if (error.response?.data?.message) {
+                setErrors({ general: [error.response.data.message] });
+            } else {
+                setErrors({ general: ['Erro ao criar campanha. Tente novamente.'] });
             }
         } finally {
             setLoading(false);
@@ -197,6 +230,11 @@ const CampaignCreatePage = () => {
                                         <option value="closed">Fechado</option>
                                         <option value="paused">Pausado</option>
                                     </select>
+                                    {formData.status && (
+                                        <p className="mt-2 text-sm text-gray-600 italic">
+                                            {getStatusDescription(formData.status)}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>

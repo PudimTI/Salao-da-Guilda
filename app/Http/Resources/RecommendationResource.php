@@ -65,7 +65,7 @@ class RecommendationResource extends JsonResource
                             return [
                                 'id' => $tag->id,
                                 'name' => $tag->name,
-                                'category' => $tag->category
+                                'type' => $tag->type ?? null
                             ];
                         }),
                         'created_at' => $campaign->created_at?->toISOString(),
@@ -90,7 +90,7 @@ class RecommendationResource extends JsonResource
                             return [
                                 'id' => $tag->id,
                                 'name' => $tag->name,
-                                'category' => $tag->category
+                                'type' => $tag->type ?? null
                             ];
                         }),
                         'likes_count' => $post->likes_count ?? 0,

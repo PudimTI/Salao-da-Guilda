@@ -172,15 +172,19 @@ class RecommendationController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Erro ao gerar recomendações', [
-                'user_id' => $user->id,
+                'user_id' => $user->id ?? null,
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
                 'success' => false,
                 'message' => 'Erro ao gerar recomendações',
-                'error' => config('app.debug') ? $e->getMessage() : 'Erro interno'
+                'error' => config('app.debug') ? $e->getMessage() : 'Erro interno',
+                'file' => config('app.debug') ? $e->getFile() : null,
+                'line' => config('app.debug') ? $e->getLine() : null
             ], 500);
         }
     }
@@ -321,8 +325,35 @@ class RecommendationController extends Controller
             $query->where('target_type', $type);
         }
 
-        return $query->orderBy('score', 'desc')
+        $recommendations = $query->orderBy('score', 'desc')
             ->limit($limit)
             ->get();
+        
+        // Se não houver recomendações e o tipo for 'campaign' ou 'all', 
+        // garantir que pelo menos a campanha id 1 seja retornada
+        if ($recommendations->isEmpty() && ($type === 'campaign' || $type === 'all')) {
+            $fallbackCampaign = \App\Models\Campaign::with(['tags', 'owner'])
+                ->where('id', 1)
+                ->where('status', 'active')
+                ->where('visibility', 'public')
+                ->first();
+            
+            if ($fallbackCampaign) {
+                // Criar recomendação temporária para a campanha id 1
+                $fallbackRec = new Recommendation([
+                    'user_id' => $userId,
+                    'target_type' => 'campaign',
+                    'target_id' => 1,
+                    'score' => 0.5,
+                    'reason' => 'Campanha padrão recomendada',
+                    'generated_at' => now(),
+                    'valid_until' => now()->addDays(7)
+                ]);
+                $fallbackRec->id = 0; // ID temporário
+                $recommendations->push($fallbackRec);
+            }
+        }
+        
+        return $recommendations;
     }
 }

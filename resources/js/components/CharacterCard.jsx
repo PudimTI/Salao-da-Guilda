@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const CharacterCard = ({ character, onEdit, onJoinCampaign }) => {
+const CharacterCard = ({ character, onEdit, onJoinCampaign, onLeaveCampaign }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editData, setEditData] = useState({
         name: character.name || '',
@@ -44,22 +44,28 @@ const CharacterCard = ({ character, onEdit, onJoinCampaign }) => {
     };
 
     const getCampaignStatus = () => {
-        if (character.campaigns_count > 0) {
+        const activeCampaigns = character.campaigns?.filter(c => 
+            c.status === 'active' || c.status === 'open'
+        ) || [];
+        if (activeCampaigns.length > 0) {
             return {
-                text: "Está na campanha",
+                text: `${activeCampaigns.length} campanha(s) ativa(s)`,
                 color: "text-green-600",
-                icon: "✓"
+                icon: "✓",
+                count: activeCampaigns.length
             };
         } else {
             return {
                 text: "Não está em campanha",
                 color: "text-gray-500",
-                icon: "○"
+                icon: "○",
+                count: 0
             };
         }
     };
 
     const campaignStatus = getCampaignStatus();
+    const activeCampaigns = character.campaigns?.filter(c => c.status === 'active') || [];
 
     return (
         <div className="border border-purple-200 rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
@@ -156,32 +162,71 @@ const CharacterCard = ({ character, onEdit, onJoinCampaign }) => {
                             {character.summary && (
                                 <div className="text-sm text-gray-600 mt-1">{character.summary}</div>
                             )}
-                            <div className={`text-sm ${campaignStatus.color} flex items-center`}>
-                                {campaignStatus.text}: 
-                                <span className={`inline-flex items-center w-6 h-6 ${campaignStatus.color === 'text-green-600' ? 'bg-green-200' : 'bg-gray-200'} rounded ml-1`}>
-                                    {campaignStatus.icon}
-                                </span>
+                            
+                            {/* Status de Campanhas */}
+                            <div className="mt-2">
+                                <div className={`text-sm ${campaignStatus.color} flex items-center mb-2`}>
+                                    <span className="mr-1">{campaignStatus.icon}</span>
+                                    {campaignStatus.text}
+                                </div>
+                                
+                                {/* Lista de Campanhas Ativas */}
+                                {activeCampaigns.length > 0 && (
+                                    <div className="mt-2 space-y-1">
+                                        {activeCampaigns.map(campaign => (
+                                            <div 
+                                                key={campaign.id} 
+                                                className="flex items-center justify-between bg-green-50 border border-green-200 rounded px-2 py-1.5"
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-green-900 truncate">
+                                                        {campaign.name}
+                                                    </p>
+                                                    {campaign.role_note && (
+                                                        <p className="text-xs text-green-700 truncate">
+                                                            {campaign.role_note}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                {onLeaveCampaign && (
+                                                    <button
+                                                        onClick={() => onLeaveCampaign(character.id, campaign.id)}
+                                                        className="ml-2 text-red-600 hover:text-red-800 transition-colors"
+                                                        title="Remover da campanha"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                            {character.available && (
-                                <div className="text-green-600 mt-1">Personagem disponível!</div>
+                            
+                            {character.available && activeCampaigns.length === 0 && (
+                                <div className="text-green-600 mt-1 text-sm">Personagem disponível!</div>
                             )}
                         </div>
                     </div>
-                    <div className="flex space-x-2">
-                        <button 
-                            onClick={handleEdit}
-                            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1.5 rounded-md text-sm"
-                        >
-                            Editar
-                        </button>
-                        {character.campaigns_count === 0 && onJoinCampaign && (
+                    <div className="flex flex-col space-y-2">
+                        <div className="flex space-x-2">
                             <button 
-                                onClick={() => onJoinCampaign(character.id)}
-                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-md text-sm"
+                                onClick={handleEdit}
+                                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-1.5 rounded-md text-sm"
                             >
-                                Entrar em Campanha
+                                Editar
                             </button>
-                        )}
+                            {onJoinCampaign && (
+                                <button 
+                                    onClick={() => onJoinCampaign(character.id)}
+                                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-md text-sm"
+                                >
+                                    {activeCampaigns.length > 0 ? 'Adicionar Campanha' : 'Entrar em Campanha'}
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

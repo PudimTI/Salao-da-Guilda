@@ -256,6 +256,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         
         // Verificar status de relacionamento
         Route::get('/relationship-status', [FriendshipController::class, 'getRelationshipStatus']);
+        Route::get('/blocked', [FriendshipController::class, 'getBlockedUsers']);
     });
     
     // Gerenciar notificações

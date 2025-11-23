@@ -19,6 +19,7 @@ export { default as CampaignListItem } from './CampaignListItem';
 export { default as UserProfilePage } from './UserProfilePage';
 export { default as CharacterForm } from './CharacterForm';
 export { default as UserPreferenceModal } from './UserPreferenceModal';
+export { default as UserOnboardingPreferencesModal } from './UserOnboardingPreferencesModal';
 export { default as UserHeaderCard } from './UserHeaderCard';
 export { default as CharacterCard } from './CharacterCard';
 export { default as UserPosts } from './UserPosts';
@@ -70,3 +71,8 @@ export { default as CampaignChatSidebar } from './CampaignChatSidebar';
 export { default as CampaignMasterSidebar } from './CampaignMasterSidebar';
 export { default as CampaignFilesList } from './CampaignFilesList';
 export { default as CampaignFileUpload } from './CampaignFileUpload';
+
+// Componentes de Configurações
+export { default as ConfiguracoesPage } from './ConfiguracoesPage';
+export { default as TagFilterManager } from './TagFilterManager';
+export { default as BlockedUsersList } from './BlockedUsersList';
